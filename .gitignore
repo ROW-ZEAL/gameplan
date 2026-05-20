@@ -1,0 +1,81 @@
+# =============================================================================
+# Django / Python — Backend
+# =============================================================================
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Django
+*.log
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+static_root/
+
+# Migrations (keep __init__.py, ignore compiled cache only)
+**/migrations/__pycache__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+
+# Pytest
+.pytest_cache/
+
+# =============================================================================
+# React / Node — Frontend
+# =============================================================================
+
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+frontend/.DS_Store
+
+# Vite
+frontend/.vite/
+
+# =============================================================================
+# General
+# =============================================================================
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Temp
+*.tmp
+*.swp
+*.bak
