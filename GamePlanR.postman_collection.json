@@ -1,0 +1,570 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-gameplanr001",
+    "name": "GamePlanR API",
+    "description": "Sports venue booking platform.\n\nFlow:\n1. Register or Login → access_token and refresh_token are auto-saved\n2. All protected endpoints use Bearer {{access_token}} from collection auth\n3. After 60 min, call Refresh Token to rotate tokens\n4. Set venue_id and timeslot_id manually from List Venues / Available Slots responses",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "base_url",             "value": "http://127.0.0.1:8000/api", "type": "string" },
+    { "key": "access_token",         "value": "", "type": "string" },
+    { "key": "refresh_token",        "value": "", "type": "string" },
+    { "key": "venue_id",             "value": "", "type": "string" },
+    { "key": "timeslot_id",          "value": "", "type": "string" },
+    { "key": "sport_category_id",    "value": "", "type": "string" },
+    { "key": "booking_id",           "value": "", "type": "string" },
+    { "key": "payment_id",           "value": "", "type": "string" },
+    { "key": "opponent_request_id",  "value": "", "type": "string" },
+    { "key": "notification_id",      "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = pm.response.json();",
+                  "if (d.access)  pm.collectionVariables.set('access_token',  d.access);",
+                  "if (d.refresh) pm.collectionVariables.set('refresh_token', d.refresh);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"full_name\": \"Test User\",\n  \"phone_number\": \"+9771234567890\",\n  \"password\": \"TestPass123!\",\n  \"password2\": \"TestPass123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register", ""]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = pm.response.json();",
+                  "if (d.access)  pm.collectionVariables.set('access_token',  d.access);",
+                  "if (d.refresh) pm.collectionVariables.set('refresh_token', d.refresh);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"TestPass123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login", ""]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = pm.response.json();",
+                  "if (d.access)  pm.collectionVariables.set('access_token',  d.access);",
+                  "if (d.refresh) pm.collectionVariables.set('refresh_token', d.refresh);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/refresh/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "refresh", ""]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/logout/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "logout", ""]
+            }
+          }
+        },
+        {
+          "name": "My Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me", ""]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Updated Name\",\n  \"phone_number\": \"+9779876543210\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/me/",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sport Categories",
+      "item": [
+        {
+          "name": "List Sport Categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = pm.response.json();",
+                  "if (d.length > 0) pm.collectionVariables.set('sport_category_id', d[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sport-categories/",
+              "host": ["{{base_url}}"],
+              "path": ["sport-categories", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Venues",
+      "item": [
+        {
+          "name": "List All Venues",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = pm.response.json();",
+                  "if (d.length > 0) {",
+                  "    pm.collectionVariables.set('venue_id', d[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/venues/",
+              "host": ["{{base_url}}"],
+              "path": ["venues", ""]
+            }
+          }
+        },
+        {
+          "name": "List Venues — Filter by Sport",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/venues/?sport_category=Futsal",
+              "host": ["{{base_url}}"],
+              "path": ["venues", ""],
+              "query": [{ "key": "sport_category", "value": "Futsal" }]
+            }
+          }
+        },
+        {
+          "name": "List Venues — Filter by City",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/venues/?city=Kathmandu",
+              "host": ["{{base_url}}"],
+              "path": ["venues", ""],
+              "query": [{ "key": "city", "value": "Kathmandu" }]
+            }
+          }
+        },
+        {
+          "name": "List Venues — Search",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/venues/?search=arena",
+              "host": ["{{base_url}}"],
+              "path": ["venues", ""],
+              "query": [{ "key": "search", "value": "arena" }]
+            }
+          }
+        },
+        {
+          "name": "Venue Detail",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/venues/{{venue_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["venues", "{{venue_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Available Slots",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = pm.response.json();",
+                  "if (Array.isArray(d) && d.length > 0) pm.collectionVariables.set('timeslot_id', d[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/venues/{{venue_id}}/available-slots/?date=2026-05-28",
+              "host": ["{{base_url}}"],
+              "path": ["venues", "{{venue_id}}", "available-slots", ""],
+              "query": [{ "key": "date", "value": "2026-05-28" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "My Bookings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/bookings/",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", ""]
+            }
+          }
+        },
+        {
+          "name": "Create Booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('booking_id', d.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"venue\": \"{{venue_id}}\",\n  \"time_slot\": \"{{timeslot_id}}\",\n  \"booking_date\": \"2026-05-28\",\n  \"notes\": \"Please have the field ready by 5 PM.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/bookings/",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", ""]
+            }
+          }
+        },
+        {
+          "name": "Booking Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/bookings/{{booking_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "{{booking_id}}", ""]
+            }
+          }
+        },
+        {
+          "name": "Pay for Booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('payment_id', d.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_method\": \"CARD\",\n  \"transaction_id\": \"TXN-TEST-001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/bookings/{{booking_id}}/pay/",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "{{booking_id}}", "pay", ""]
+            }
+          }
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/bookings/{{booking_id}}/cancel/",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "{{booking_id}}", "cancel", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Payment Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/payments/{{payment_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["payments", "{{payment_id}}", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Opponent Requests",
+      "item": [
+        {
+          "name": "Open Opponent Requests (Browse)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/opponent-requests/",
+              "host": ["{{base_url}}"],
+              "path": ["opponent-requests", ""]
+            }
+          }
+        },
+        {
+          "name": "My Opponent Requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/opponent-requests/?mine=1",
+              "host": ["{{base_url}}"],
+              "path": ["opponent-requests", ""],
+              "query": [{ "key": "mine", "value": "1" }]
+            }
+          }
+        },
+        {
+          "name": "Create Opponent Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('opponent_request_id', d.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"booking\": \"{{booking_id}}\",\n  \"sport_category\": \"{{sport_category_id}}\",\n  \"skill_level\": \"INTERMEDIATE\",\n  \"message\": \"Looking for a competitive match partner!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/opponent-requests/",
+              "host": ["{{base_url}}"],
+              "path": ["opponent-requests", ""]
+            }
+          }
+        },
+        {
+          "name": "Cancel Opponent Request",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/opponent-requests/{{opponent_request_id}}/cancel/",
+              "host": ["{{base_url}}"],
+              "path": ["opponent-requests", "{{opponent_request_id}}", "cancel", ""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "All Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var d = pm.response.json();",
+                  "if (d.length > 0) pm.collectionVariables.set('notification_id', d[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications/",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", ""]
+            }
+          }
+        },
+        {
+          "name": "Unread Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications/?unread=1",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", ""],
+              "query": [{ "key": "unread", "value": "1" }]
+            }
+          }
+        },
+        {
+          "name": "Mark One as Read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications/{{notification_id}}/read/",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "{{notification_id}}", "read", ""]
+            }
+          }
+        },
+        {
+          "name": "Mark All as Read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notifications/read-all/",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "read-all", ""]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

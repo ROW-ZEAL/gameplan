@@ -1,3 +1,7 @@
+from datetime import date
+
+from django.db.models import Q
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -6,8 +10,19 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import User
-from .serializers import CustomTokenObtainPairSerializer, RegisterSerializer, UserProfileSerializer
+from .models import (
+    Booking, Notification, OpponentRequest, Payment,
+    SportCategory, TimeSlot, User, Venue,
+)
+from .serializers import (
+    BookingCreateSerializer, BookingSerializer,
+    CustomTokenObtainPairSerializer, NotificationSerializer,
+    OpponentRequestCreateSerializer, OpponentRequestSerializer,
+    PaymentCreateSerializer, PaymentSerializer,
+    RegisterSerializer, SportCategorySerializer,
+    TimeSlotSerializer, UserProfileSerializer,
+    VenueDetailSerializer, VenueListSerializer,
+)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -20,10 +35,16 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
+        access  = str(refresh.access_token)
+        ref     = str(refresh)
+        user.access_token  = access
+        user.refresh_token = ref
+        user.is_revoked    = False
+        user.save(update_fields=['access_token', 'refresh_token', 'is_revoked', 'updated_at'])
         return Response({
             'user': UserProfileSerializer(user).data,
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
+            'refresh': ref,
+            'access': access,
         }, status=status.HTTP_201_CREATED)
 
 
@@ -44,6 +65,10 @@ class LogoutView(APIView):
             token.blacklist()
         except TokenError:
             return Response({'detail': 'Invalid or expired token.'}, status=status.HTTP_400_BAD_REQUEST)
+        request.user.is_revoked    = True
+        request.user.access_token  = None
+        request.user.refresh_token = None
+        request.user.save(update_fields=['is_revoked', 'access_token', 'refresh_token', 'updated_at'])
         return Response({'detail': 'Successfully logged out.'}, status=status.HTTP_200_OK)
 
 
@@ -53,3 +78,230 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class SportCategoryListView(generics.ListAPIView):
+    queryset = SportCategory.objects.all()
+    serializer_class = SportCategorySerializer
+    permission_classes = (AllowAny,)
+
+
+class VenueListView(generics.ListAPIView):
+    serializer_class = VenueListSerializer
+    permission_classes = (AllowAny,)
+
+    def get_queryset(self):
+        qs = Venue.objects.filter(is_active=True).select_related('sport_category').prefetch_related('images')
+        sport_category = self.request.query_params.get('sport_category')
+        city = self.request.query_params.get('city')
+        search = self.request.query_params.get('search')
+        if sport_category:
+            qs = qs.filter(sport_category__name__iexact=sport_category)
+        if city:
+            qs = qs.filter(city__iexact=city)
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(city__icontains=search))
+        return qs
+
+
+class VenueDetailView(generics.RetrieveAPIView):
+    queryset = (
+        Venue.objects.filter(is_active=True)
+        .select_related('sport_category')
+        .prefetch_related('facilities', 'images', 'time_slots')
+    )
+    serializer_class = VenueDetailSerializer
+    permission_classes = (AllowAny,)
+
+
+class AvailableSlotsView(APIView):
+    permission_classes = (AllowAny,)
+
+    def get(self, request, pk):
+        try:
+            venue = Venue.objects.get(pk=pk, is_active=True)
+        except Venue.DoesNotExist:
+            return Response({'detail': 'Venue not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        date_str = request.query_params.get('date')
+        if not date_str:
+            return Response(
+                {'detail': 'date query parameter is required (YYYY-MM-DD).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            booking_date = date.fromisoformat(date_str)
+        except ValueError:
+            return Response({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if booking_date < timezone.localdate():
+            return Response({'detail': 'Cannot check availability for past dates.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        booked_slot_ids = (
+            Booking.objects.filter(venue=venue, booking_date=booking_date)
+            .exclude(status=Booking.Status.CANCELLED)
+            .values_list('time_slot_id', flat=True)
+        )
+
+        available_slots = TimeSlot.objects.filter(venue=venue, is_active=True).exclude(id__in=booked_slot_ids)
+        return Response(TimeSlotSerializer(available_slots, many=True).data)
+
+
+class BookingListCreateView(generics.ListCreateAPIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return BookingCreateSerializer
+        return BookingSerializer
+
+    def get_queryset(self):
+        return (
+            Booking.objects.filter(user=self.request.user)
+            .select_related('venue', 'time_slot')
+            .order_by('-booking_date', '-created_at')
+        )
+
+    def create(self, request, *args, **kwargs):
+        serializer = BookingCreateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        booking = serializer.save()
+        return Response(BookingSerializer(booking).data, status=status.HTTP_201_CREATED)
+
+
+class BookingDetailView(generics.RetrieveAPIView):
+    serializer_class = BookingSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        return Booking.objects.filter(user=self.request.user).select_related('venue', 'time_slot')
+
+
+class BookingCancelView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, pk):
+        try:
+            booking = Booking.objects.get(pk=pk, user=request.user)
+        except Booking.DoesNotExist:
+            return Response({'detail': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not booking.is_cancellable:
+            return Response({'detail': 'This booking cannot be cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        booking.status = Booking.Status.CANCELLED
+        booking.save(update_fields=['status', 'updated_at'])
+
+        Notification.objects.create(
+            user=request.user,
+            title='Booking Cancelled',
+            message=f'Your booking {booking.booking_reference} has been cancelled.',
+            notification_type=Notification.NotificationType.BOOKING_CANCELLED,
+        )
+
+        return Response(BookingSerializer(booking).data)
+
+
+class BookingPayView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, pk):
+        try:
+            booking = Booking.objects.get(pk=pk, user=request.user)
+        except Booking.DoesNotExist:
+            return Response({'detail': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = PaymentCreateSerializer(
+            data=request.data,
+            context={'request': request, 'booking': booking},
+        )
+        serializer.is_valid(raise_exception=True)
+        payment = serializer.save()
+
+        Notification.objects.create(
+            user=request.user,
+            title='Payment Successful',
+            message=f'Payment for booking {booking.booking_reference} was successful.',
+            notification_type=Notification.NotificationType.PAYMENT_SUCCESS,
+        )
+
+        return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
+
+
+class PaymentDetailView(generics.RetrieveAPIView):
+    serializer_class = PaymentSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        return Payment.objects.filter(booking__user=self.request.user).select_related('booking')
+
+
+class OpponentRequestListCreateView(generics.ListCreateAPIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return OpponentRequestCreateSerializer
+        return OpponentRequestSerializer
+
+    def get_queryset(self):
+        qs = OpponentRequest.objects.select_related('booking', 'requested_by', 'sport_category')
+        if self.request.query_params.get('mine'):
+            return qs.filter(requested_by=self.request.user)
+        return qs.filter(status=OpponentRequest.Status.OPEN)
+
+    def create(self, request, *args, **kwargs):
+        serializer = OpponentRequestCreateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        opponent_request = serializer.save()
+        return Response(OpponentRequestSerializer(opponent_request).data, status=status.HTTP_201_CREATED)
+
+
+class OpponentRequestCancelView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, pk):
+        try:
+            opponent_request = OpponentRequest.objects.get(pk=pk, requested_by=request.user)
+        except OpponentRequest.DoesNotExist:
+            return Response({'detail': 'Opponent request not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if opponent_request.status == OpponentRequest.Status.CANCELLED:
+            return Response({'detail': 'This request is already cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        opponent_request.status = OpponentRequest.Status.CANCELLED
+        opponent_request.save(update_fields=['status', 'updated_at'])
+
+        return Response(OpponentRequestSerializer(opponent_request).data)
+
+
+class NotificationListView(generics.ListAPIView):
+    serializer_class = NotificationSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        qs = Notification.objects.filter(user=self.request.user)
+        if self.request.query_params.get('unread'):
+            qs = qs.filter(is_read=False)
+        return qs
+
+
+class NotificationMarkReadView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, pk):
+        try:
+            notification = Notification.objects.get(pk=pk, user=request.user)
+        except Notification.DoesNotExist:
+            return Response({'detail': 'Notification not found.'}, status=status.HTTP_404_NOT_FOUND)
+        notification.mark_as_read()
+        return Response(NotificationSerializer(notification).data)
+
+
+class NotificationMarkAllReadView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return Response({'detail': 'All notifications marked as read.'})

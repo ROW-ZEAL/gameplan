@@ -89,9 +89,12 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
         default=Role.USER,
         db_index=True,
     )
-    is_verified = models.BooleanField(default=False)
-    is_active   = models.BooleanField(default=True)
-    is_staff    = models.BooleanField(default=False)
+    is_verified   = models.BooleanField(default=False)
+    is_active     = models.BooleanField(default=True)
+    is_staff      = models.BooleanField(default=False)
+    is_revoked    = models.BooleanField(default=False)
+    access_token  = models.TextField(blank=True, null=True)
+    refresh_token = models.TextField(blank=True, null=True)
 
     objects = UserManager()
 
@@ -334,10 +337,10 @@ class Booking(BaseModel):
         verbose_name        = _("Booking")
         verbose_name_plural = _("Bookings")
         ordering            = ["-booking_date", "-created_at"]
-        unique_together = [("venue", "time_slot", "booking_date")]
         indexes = [
             models.Index(fields=["user", "status"]),
             models.Index(fields=["venue", "booking_date", "status"]),
+            models.Index(fields=["venue", "time_slot", "booking_date"]),
         ]
 
     def __str__(self):
