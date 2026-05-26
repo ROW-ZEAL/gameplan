@@ -4,6 +4,9 @@ import { AuthProvider } from './context/AuthContext'
 import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import SportsPage from './pages/SportsPage'
+import VenuePage from './pages/VenuePage'
+import BookingPage from './pages/BookingPage'
 
 export default function App() {
   return (
@@ -16,6 +19,30 @@ export default function App() {
           element={
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sports"
+          element={
+            <ProtectedRoute>
+              <SportsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/venues"
+          element={
+            <ProtectedRoute>
+              <VenuePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/booking"
+          element={
+            <ProtectedRoute>
+              <BookingPage />
             </ProtectedRoute>
           }
         />
