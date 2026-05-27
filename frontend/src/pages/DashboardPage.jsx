@@ -28,8 +28,8 @@ export default function DashboardPage() {
               <div className="grid gap-4 sm:grid-cols-2 lg:max-w-xl">
                 <div className="rounded-3xl bg-white/10 p-6 ring-1 ring-white/15 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.8)]">
                   <p className="text-xs uppercase tracking-[0.3em] text-cyan-100/80">Next match</p>
-                  <p className="mt-4 text-2xl font-semibold text-white">Basketball</p>
-                  <p className="mt-2 text-sm text-cyan-100/80">Court reservation opens tomorrow at 10:00 AM.</p>
+                  <p className="mt-4 text-2xl font-semibold text-white">Fustal</p>
+                  <p className="mt-2 text-sm text-cyan-100/80">Ground reservation opens tomorrow at 06:00 AM.</p>
                 </div>
                 <div className="rounded-3xl bg-white/10 p-6 ring-1 ring-white/15 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.8)]">
                   <p className="text-xs uppercase tracking-[0.3em] text-cyan-100/80">Quick stats</p>
@@ -177,7 +177,7 @@ export default function DashboardPage() {
           />
           <div className="absolute inset-0 bg-gradient-to-r from-slate-900/20 via-slate-900/10 to-transparent" />
           <div className="absolute inset-0 flex flex-col items-start justify-center px-6 sm:px-10 lg:px-14 py-10">
-            <p className="text-sm font-semibold uppercase tracking-[0.32em] text-emerald-400/90">Book Place In Trusted Venue</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.32em] text-white leading-tight">Book Place In Trusted Venue</p>
             <h2 className="mt-4 max-w-2xl text-3xl sm:text-4xl font-semibold text-white leading-tight">Experience world-class stadium facilities</h2>
             <p className="mt-4 max-w-xl text-base text-slate-200/90">Reserve your spot at iconic venues like Camp Nou and enjoy premium facilities for your next game.</p>
             <button className="mt-6 inline-flex items-center justify-center rounded-full bg-emerald-500 px-8 py-3 text-sm font-semibold text-white transition hover:bg-emerald-600">
