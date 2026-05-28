@@ -133,6 +133,7 @@ class BookingSerializer(serializers.ModelSerializer):
     time_slot_start = serializers.SerializerMethodField()
     time_slot_end   = serializers.SerializerMethodField()
     is_cancellable  = serializers.BooleanField(read_only=True)
+    user = UserProfileSerializer(read_only=True)
 
     def _fmt_time(self, t):
         hour = int(t.strftime('%I'))
@@ -147,6 +148,7 @@ class BookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = (
+            'user',
             'id', 'booking_reference', 'venue', 'venue_name', 'time_slot',
             'time_slot_start', 'time_slot_end', 'booking_date', 'total_amount',
             'status', 'payment_status', 'notes', 'is_cancellable', 'created_at',
