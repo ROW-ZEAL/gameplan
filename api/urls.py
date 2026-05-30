@@ -3,7 +3,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from .views import (
     AvailableSlotsView, BookingCancelView, BookingDetailView,
-    BookingListCreateView, BookingPayView, LoginView, LogoutView,
+    BookingListCreateView, BookingPayView, EsewaInitiateView, EsewaVerifyView,
+    LoginView, LogoutView,
     NotificationListView, NotificationMarkAllReadView, NotificationMarkReadView,
     OpponentRequestCancelView, OpponentRequestListCreateView, PaymentDetailView,
     RegisterView, SportCategoryListView, UserProfileView, VenueDetailView,
@@ -27,8 +28,10 @@ urlpatterns = [
     path('bookings/<uuid:pk>/', BookingDetailView.as_view(), name='booking-detail'),
     path('bookings/<uuid:pk>/cancel/', BookingCancelView.as_view(), name='booking-cancel'),
     path('bookings/<uuid:pk>/pay/', BookingPayView.as_view(), name='booking-pay'),
+    path('bookings/<uuid:pk>/initiate-esewa/', EsewaInitiateView.as_view(), name='booking-initiate-esewa'),
 
     path('payments/<uuid:pk>/', PaymentDetailView.as_view(), name='payment-detail'),
+    path('esewa/verify/', EsewaVerifyView.as_view(), name='esewa-verify'),
 
     path('opponent-requests/', OpponentRequestListCreateView.as_view(), name='opponent-request-list-create'),
     path('opponent-requests/<uuid:pk>/cancel/', OpponentRequestCancelView.as_view(), name='opponent-request-cancel'),

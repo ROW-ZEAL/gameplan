@@ -4,6 +4,15 @@ import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import api from '../api/axios'
 
+function formatRs(amount) {
+  const n = parseFloat(amount)
+  const isWhole = n === Math.floor(n)
+  return '₨' + n.toLocaleString('en-IN', {
+    minimumFractionDigits: isWhole ? 0 : 2,
+    maximumFractionDigits: 2,
+  })
+}
+
 export default function VenuePage() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -161,7 +170,7 @@ export default function VenuePage() {
                         <span className="font-semibold text-slate-900">Address:</span> {venue.address || 'Not available'}
                       </p>
                       <p>
-                        <span className="font-semibold text-slate-900">Rate:</span> ₨{venue.price_per_hour} / hour
+                        <span className="font-semibold text-slate-900">Rate:</span> {formatRs(venue.price_per_hour)} / hour
                       </p>
                     </div>
 
@@ -191,7 +200,7 @@ export default function VenuePage() {
               <div className="absolute inset-0 bg-black/40" onClick={closeBooking} />
               <form onSubmit={submitBooking} className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 shadow-lg">
                 <h3 className="text-lg font-semibold text-slate-900">Book {activeVenue.name}</h3>
-                <p className="mt-1 text-sm text-slate-600">Rate: ₨{activeVenue.price_per_hour} / hour</p>
+                <p className="mt-1 text-sm text-slate-600">Rate: {formatRs(activeVenue.price_per_hour)} / hour</p>
 
                 <div className="mt-4 space-y-3">
                   <label className="block text-sm text-slate-700">Date</label>

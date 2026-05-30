@@ -150,6 +150,13 @@ REST_FRAMEWORK = {
     ),
 }
 
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+ESEWA_MERCHANT_CODE = os.getenv("ESEWA_MERCHANT_CODE", "EPAYTEST")
+ESEWA_SECRET_KEY = os.getenv("ESEWA_SECRET_KEY", "8gBm/:&EnhH.1/q")
+ESEWA_PAYMENT_URL = os.getenv("ESEWA_PAYMENT_URL", "https://rc-epay.esewa.com.np/api/epay/main/v2/form")
+ESEWA_STATUS_URL = os.getenv("ESEWA_STATUS_URL", "https://rc-epay.esewa.com.np/api/epay/transaction/status/")
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),

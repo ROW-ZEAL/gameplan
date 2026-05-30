@@ -1,5 +1,10 @@
+import base64
+import hashlib
+import hmac
+import json
 from datetime import date
 
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import generics, status
@@ -23,6 +28,13 @@ from .serializers import (
     TimeSlotSerializer, UserProfileSerializer,
     VenueDetailSerializer, VenueListSerializer,
 )
+
+
+def _esewa_signature(total_amount, transaction_uuid, product_code):
+    secret = settings.ESEWA_SECRET_KEY.encode()
+    message = f"total_amount={total_amount},transaction_uuid={transaction_uuid},product_code={product_code}"
+    sig = hmac.new(secret, message.encode(), hashlib.sha256)
+    return base64.b64encode(sig.digest()).decode()
 
 
 class RegisterView(generics.CreateAPIView):
@@ -204,6 +216,7 @@ class BookingCancelView(APIView):
 
 
 class BookingPayView(APIView):
+    """Handles Pay at Venue. For eSewa use /bookings/{id}/initiate-esewa/."""
     permission_classes = (IsAuthenticated,)
 
     def post(self, request, pk):
@@ -221,8 +234,105 @@ class BookingPayView(APIView):
 
         Notification.objects.create(
             user=request.user,
+            title='Booking Reserved – Pay at Venue',
+            message=(
+                f'Your booking {booking.booking_reference} is reserved. '
+                f'Show payment ID {payment.transaction_id} at the venue.'
+            ),
+            notification_type=Notification.NotificationType.BOOKING_CONFIRMED,
+        )
+
+        return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
+
+
+class EsewaInitiateView(APIView):
+    """Returns signed eSewa form parameters; does not create a Payment record."""
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request, pk):
+        try:
+            booking = Booking.objects.get(pk=pk, user=request.user)
+        except Booking.DoesNotExist:
+            return Response({'detail': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if booking.status == Booking.Status.CANCELLED:
+            return Response({'detail': 'Cannot pay for a cancelled booking.'}, status=status.HTTP_400_BAD_REQUEST)
+        if booking.payment_status == Booking.PaymentStatus.PAID:
+            return Response({'detail': 'This booking is already paid.'}, status=status.HTTP_400_BAD_REQUEST)
+        if hasattr(booking, 'payment'):
+            return Response({'detail': 'A payment record already exists for this booking.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        product_code = settings.ESEWA_MERCHANT_CODE
+        total_amount = str(booking.total_amount)
+        transaction_uuid = f"{booking.id}_{int(timezone.now().timestamp())}"
+
+        signature = _esewa_signature(total_amount, transaction_uuid, product_code)
+
+        return Response({
+            'payment_url': settings.ESEWA_PAYMENT_URL,
+            'amount': total_amount,
+            'tax_amount': '0',
+            'total_amount': total_amount,
+            'transaction_uuid': transaction_uuid,
+            'product_code': product_code,
+            'product_service_charge': '0',
+            'product_delivery_charge': '0',
+            'success_url': f"{settings.FRONTEND_URL}/esewa/success",
+            'failure_url': f"{settings.FRONTEND_URL}/esewa/failure",
+            'signed_field_names': 'total_amount,transaction_uuid,product_code',
+            'signature': signature,
+        })
+
+
+class EsewaVerifyView(APIView):
+    """Verifies eSewa callback data and creates a Payment record on success."""
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        encoded = request.data.get('data')
+        if not encoded:
+            return Response({'detail': 'Missing data parameter.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            decoded = json.loads(base64.b64decode(encoded).decode())
+        except Exception:
+            return Response({'detail': 'Invalid data encoding.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        signed_fields = decoded.get('signed_field_names', '').split(',')
+        message = ','.join(f"{f}={decoded.get(f, '')}" for f in signed_fields)
+        expected_sig = base64.b64encode(
+            hmac.new(settings.ESEWA_SECRET_KEY.encode(), message.encode(), hashlib.sha256).digest()
+        ).decode()
+
+        if expected_sig != decoded.get('signature'):
+            return Response({'detail': 'Payment verification failed: invalid signature.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if decoded.get('status') != 'COMPLETE':
+            return Response({'detail': 'Payment was not completed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        transaction_uuid = decoded.get('transaction_uuid', '')
+        try:
+            booking_id = transaction_uuid.split('_')[0]
+            booking = Booking.objects.get(pk=booking_id, user=request.user)
+        except (Booking.DoesNotExist, Exception):
+            return Response({'detail': 'Booking not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if hasattr(booking, 'payment'):
+            return Response({'detail': 'Payment already recorded.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        payment = Payment.objects.create(
+            booking=booking,
+            payment_method=Payment.PaymentMethod.ESEWA,
+            transaction_id=decoded.get('transaction_code', transaction_uuid),
+            amount=booking.total_amount,
+            status=Payment.Status.SUCCESS,
+            payment_gateway_response=decoded,
+        )
+
+        Notification.objects.create(
+            user=request.user,
             title='Payment Successful',
-            message=f'Payment for booking {booking.booking_reference} was successful.',
+            message=f'eSewa payment for booking {booking.booking_reference} was successful.',
             notification_type=Notification.NotificationType.PAYMENT_SUCCESS,
         )
 

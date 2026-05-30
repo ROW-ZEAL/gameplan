@@ -134,6 +134,7 @@ class BookingSerializer(serializers.ModelSerializer):
     time_slot_end   = serializers.SerializerMethodField()
     is_cancellable  = serializers.BooleanField(read_only=True)
     user = UserProfileSerializer(read_only=True)
+    payment_info = serializers.SerializerMethodField()
 
     def _fmt_time(self, t):
         hour = int(t.strftime('%I'))
@@ -145,13 +146,26 @@ class BookingSerializer(serializers.ModelSerializer):
     def get_time_slot_end(self, obj):
         return self._fmt_time(obj.time_slot.end_time)
 
+    def get_payment_info(self, obj):
+        if not hasattr(obj, 'payment'):
+            return None
+        p = obj.payment
+        return {
+            'id': str(p.id),
+            'payment_method': p.payment_method,
+            'transaction_id': p.transaction_id,
+            'status': p.status,
+            'amount': str(p.amount),
+            'paid_at': p.paid_at,
+        }
+
     class Meta:
         model = Booking
         fields = (
             'user',
             'id', 'booking_reference', 'venue', 'venue_name', 'time_slot',
             'time_slot_start', 'time_slot_end', 'booking_date', 'total_amount',
-            'status', 'payment_status', 'notes', 'is_cancellable', 'created_at',
+            'status', 'payment_status', 'notes', 'is_cancellable', 'payment_info', 'created_at',
         )
 
 
@@ -216,7 +230,15 @@ class PaymentSerializer(serializers.ModelSerializer):
 class PaymentCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = ('payment_method', 'transaction_id')
+        fields = ('payment_method',)
+
+    def validate_payment_method(self, value):
+        if value not in (Payment.PaymentMethod.PAY_AT_VENUE,):
+            raise serializers.ValidationError(
+                'Use the dedicated eSewa endpoint for online payments. '
+                'Only PAY_AT_VENUE is accepted here.'
+            )
+        return value
 
     def validate(self, attrs):
         booking = self.context['booking']
@@ -231,11 +253,15 @@ class PaymentCreateSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        import random, string
         booking = self.context['booking']
+        suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        transaction_id = f"PAV-{suffix}"
         return Payment.objects.create(
             booking=booking,
             amount=booking.total_amount,
-            status=Payment.Status.SUCCESS,
+            status=Payment.Status.PENDING,
+            transaction_id=transaction_id,
             **validated_data,
         )
 

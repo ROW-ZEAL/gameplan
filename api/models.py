@@ -387,6 +387,8 @@ class Payment(BaseModel):
         BANK_TRANSFER = "BANK_TRANSFER", _("Bank Transfer")
         WALLET       = "WALLET",       _("Wallet")
         CASH         = "CASH",         _("Cash")
+        ESEWA        = "ESEWA",        _("eSewa")
+        PAY_AT_VENUE = "PAY_AT_VENUE", _("Pay at Venue")
 
     class Status(models.TextChoices):
         PENDING   = "PENDING",   _("Pending")
