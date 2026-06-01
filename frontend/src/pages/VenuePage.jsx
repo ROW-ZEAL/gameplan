@@ -69,18 +69,38 @@ export default function VenuePage() {
     function openBooking(venue) {
       ;(async () => {
         try {
-          const { data } = await api.get(`/venues/${venue.id}/`)
-          setAvailableTimeSlots(data.time_slots || [])
           setActiveVenue(venue)
           setBookingDate('')
           setTimeSlot('')
           setAmount(venue.price_per_hour || '')
           setNotes('')
           setSubmitError(null)
+          setAvailableTimeSlots([]) // Clear slots until date is selected
         } catch (err) {
-          setSubmitError('Unable to load venue time slots.')
+          setSubmitError('Unable to load venue.')
         }
       })()
+    }
+
+    async function handleDateChange(e) {
+      const date = e.target.value
+      setBookingDate(date)
+      if (!date || !activeVenue) {
+        setAvailableTimeSlots([])
+        return
+      }
+
+      try {
+        const { data } = await api.get(`/venues/${activeVenue.id}/available-slots/`, {
+          params: { date }
+        })
+        setAvailableTimeSlots(data)
+        setTimeSlot('')
+        setSubmitError(null)
+      } catch (err) {
+        setSubmitError('Unable to load available time slots.')
+        setAvailableTimeSlots([])
+      }
     }
 
     function closeBooking() {
@@ -208,7 +228,7 @@ export default function VenuePage() {
                     required
                     type="date"
                     value={bookingDate}
-                    onChange={(e) => setBookingDate(e.target.value)}
+                    onChange={handleDateChange}
                     className="w-full rounded-md border border-slate-200 px-3 py-2"
                   />
 
