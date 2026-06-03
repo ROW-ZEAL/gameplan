@@ -14,7 +14,11 @@ from .models import (
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'email', 'full_name', 'phone_number', 'profile_image', 'role', 'is_verified', 'created_at')
+        fields = (
+            'id', 'email', 'full_name', 'phone_number', 'profile_image',
+            'role', 'is_verified', 'created_at',
+            'home_latitude', 'home_longitude',
+        )
         read_only_fields = ('id', 'email', 'role', 'is_verified', 'created_at')
 
 
@@ -307,3 +311,26 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = ('id', 'title', 'message', 'notification_type', 'is_read', 'created_at')
         read_only_fields = ('id', 'title', 'message', 'notification_type', 'is_read', 'created_at')
+
+
+class NearbyVenueSerializer(serializers.ModelSerializer):
+    sport_category = SportCategorySerializer(read_only=True)
+    primary_image = serializers.SerializerMethodField()
+    distance_km = serializers.FloatField(read_only=True)
+
+    class Meta:
+        model = Venue
+        fields = (
+            'id', 'name', 'sport_category', 'city', 'address',
+            'latitude', 'longitude',
+            'price_per_hour', 'is_active', 'primary_image', 'distance_km',
+        )
+
+    def get_primary_image(self, obj):
+        image = obj.images.first()
+        if not image:
+            return None
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(image.image.url)
+        return image.image.url

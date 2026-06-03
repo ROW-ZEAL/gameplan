@@ -95,6 +95,8 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     is_revoked    = models.BooleanField(default=False)
     access_token  = models.TextField(blank=True, null=True)
     refresh_token = models.TextField(blank=True, null=True)
+    home_latitude  = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    home_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
     objects = UserManager()
 

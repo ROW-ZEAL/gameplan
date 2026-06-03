@@ -9,6 +9,7 @@ import VenuePage from './pages/VenuePage'
 import BookingPage from './pages/BookingPage'
 import EsewaSuccess from './pages/EsewaSuccess'
 import EsewaFailure from './pages/EsewaFailure'
+import NearbyVenuesPage from './pages/NearbyVenuesPage'
 
 export default function App() {
   return (
@@ -47,6 +48,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <BookingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/nearby"
+          element={
+            <ProtectedRoute>
+              <NearbyVenuesPage />
             </ProtectedRoute>
           }
         />

@@ -5,6 +5,7 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', path: '/dashboard' },
   { id: 'sports', label: 'Sports Category', path: '/sports' },
   { id: 'venue', label: 'Venue', path: '/venues' },
+  { id: 'nearby', label: 'Nearby Venues', path: '/nearby' },
   { id: 'booking', label: 'Booking', path: '/booking' },
 ]
 

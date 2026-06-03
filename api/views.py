@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import json
+import math
 from datetime import date
 
 from django.conf import settings
@@ -21,7 +22,8 @@ from .models import (
 )
 from .serializers import (
     BookingCreateSerializer, BookingSerializer,
-    CustomTokenObtainPairSerializer, NotificationSerializer,
+    CustomTokenObtainPairSerializer, NearbyVenueSerializer,
+    NotificationSerializer,
     OpponentRequestCreateSerializer, OpponentRequestSerializer,
     PaymentCreateSerializer, PaymentSerializer,
     RegisterSerializer, SportCategorySerializer,
@@ -415,3 +417,90 @@ class NotificationMarkAllReadView(APIView):
     def post(self, request):
         Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
         return Response({'detail': 'All notifications marked as read.'})
+
+
+class NearbyVenuesView(APIView):
+    """
+    Returns the K nearest active venues to a given location using KNN (Haversine).
+
+    Query params:
+      latitude  – float, required
+      longitude – float, required
+      k         – int, optional (default 5, max 20)
+    """
+    permission_classes = (AllowAny,)
+
+    EARTH_RADIUS_KM = 6371.0
+
+    def get(self, request):
+        lat_str = request.query_params.get('latitude')
+        lng_str = request.query_params.get('longitude')
+
+        if not lat_str or not lng_str:
+            return Response(
+                {'detail': 'latitude and longitude query parameters are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user_lat = float(lat_str)
+            user_lng = float(lng_str)
+        except ValueError:
+            return Response(
+                {'detail': 'latitude and longitude must be valid numbers.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not (-90 <= user_lat <= 90) or not (-180 <= user_lng <= 180):
+            return Response(
+                {'detail': 'latitude must be between -90 and 90; longitude between -180 and 180.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            k = int(request.query_params.get('k', 5))
+            k = max(1, min(k, 20))
+        except ValueError:
+            k = 5
+
+        venues = (
+            Venue.objects.filter(is_active=True)
+            .exclude(latitude=None)
+            .exclude(longitude=None)
+            .select_related('sport_category')
+            .prefetch_related('images')
+        )
+
+        if not venues.exists():
+            return Response({
+                'user_location': {'latitude': user_lat, 'longitude': user_lng},
+                'nearest_venues': [],
+            })
+
+        venue_list = list(venues)
+
+        def haversine_km(lat1, lon1, lat2, lon2):
+            r = self.EARTH_RADIUS_KM
+            phi1, phi2 = math.radians(lat1), math.radians(lat2)
+            dphi = math.radians(lat2 - lat1)
+            dlambda = math.radians(lon2 - lon1)
+            a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+            return r * 2 * math.asin(math.sqrt(a))
+
+        scored = []
+        for venue in venue_list:
+            dist = haversine_km(user_lat, user_lng, float(venue.latitude), float(venue.longitude))
+            scored.append((dist, venue))
+
+        scored.sort(key=lambda x: x[0])
+
+        nearest = []
+        for dist_km, venue in scored[:k]:
+            venue.distance_km = round(dist_km, 2)
+            nearest.append(venue)
+
+        serializer = NearbyVenueSerializer(nearest, many=True, context={'request': request})
+        return Response({
+            'user_location': {'latitude': user_lat, 'longitude': user_lng},
+            'nearest_venues': serializer.data,
+        })
