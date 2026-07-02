@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GamePlanR — Algorithm Documentation</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green:  #059669;
+    --green-l:#d1fae5;
+    --blue:   #2563eb;
+    --blue-l: #dbeafe;
+    --amber:  #d97706;
+    --amber-l:#fef3c7;
+    --slate:  #1e293b;
+    --slate-m:#475569;
+    --slate-l:#94a3b8;
+    --border: #e2e8f0;
+    --bg:     #f8fafc;
+    --white:  #ffffff;
+    --purple: #7c3aed;
+    --purple-l:#ede9fe;
+    --rose:   #e11d48;
+    --rose-l: #ffe4e6;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--slate);
+    background: var(--white);
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 40px;
+  }
+
+  /* ── Cover ── */
+  .cover {
+    text-align: center;
+    padding: 60px 0 48px;
+    border-bottom: 3px solid var(--green);
+    margin-bottom: 52px;
+  }
+  .cover-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--green);
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 999px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    margin-bottom: 28px;
+  }
+  .cover h1 {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--slate);
+    margin-bottom: 12px;
+  }
+  .cover p {
+    font-size: 15px;
+    color: var(--slate-m);
+    max-width: 560px;
+    margin: 0 auto 8px;
+  }
+  .cover .meta {
+    font-size: 12px;
+    color: var(--slate-l);
+    margin-top: 16px;
+  }
+
+  /* ── TOC ── */
+  .toc {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 52px;
+  }
+  .toc h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--slate-l); margin-bottom: 12px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin-bottom: 5px; }
+  .toc a { color: var(--green); text-decoration: none; font-weight: 500; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* ── Sections ── */
+  .section { margin-bottom: 56px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid var(--border);
+  }
+  .section-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .icon-green { background: var(--green-l); }
+  .icon-blue  { background: var(--blue-l);  }
+
+  h2.section-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--slate);
+  }
+  h2.section-title span {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--slate-l);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-bottom: 2px;
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--slate);
+    margin: 28px 0 10px;
+  }
+  h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--slate-m);
+    margin: 18px 0 6px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+
+  p { margin-bottom: 10px; color: var(--slate-m); }
+
+  /* ── Info / note boxes ── */
+  .box {
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin: 14px 0;
+    border-left: 4px solid;
+  }
+  .box-green  { background: var(--green-l);  border-color: var(--green);  }
+  .box-blue   { background: var(--blue-l);   border-color: var(--blue);   }
+  .box-amber  { background: var(--amber-l);  border-color: var(--amber);  }
+  .box-purple { background: var(--purple-l); border-color: var(--purple); }
+  .box-rose   { background: var(--rose-l);   border-color: var(--rose);   }
+  .box strong { color: var(--slate); }
+  .box p { margin: 0; }
+
+  /* ── Weights table ── */
+  .weights {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 14px 0;
+  }
+  .weight-card {
+    flex: 1;
+    min-width: 130px;
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .weight-card .pct {
+    font-size: 28px;
+    font-weight: 800;
+    display: block;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .weight-card .label { font-size: 12px; font-weight: 600; }
+  .weight-card .desc  { font-size: 11px; color: var(--slate-m); margin-top: 4px; }
+
+  .wc-green  { background: var(--green-l);  } .wc-green  .pct { color: var(--green);  }
+  .wc-blue   { background: var(--blue-l);   } .wc-blue   .pct { color: var(--blue);   }
+  .wc-amber  { background: var(--amber-l);  } .wc-amber  .pct { color: var(--amber);  }
+  .wc-purple { background: var(--purple-l); } .wc-purple .pct { color: var(--purple); }
+
+  /* ── Code blocks ── */
+  pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 10px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-size: 12px;
+    line-height: 1.7;
+    margin: 12px 0;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  }
+  .kw  { color: #7dd3fc; }  /* keyword  */
+  .fn  { color: #86efac; }  /* function */
+  .st  { color: #fca5a5; }  /* string   */
+  .cm  { color: #64748b; }  /* comment  */
+  .nu  { color: #fdba74; }  /* number   */
+  .cl  { color: #f9a8d4; }  /* class    */
+
+  code {
+    background: #f1f5f9;
+    color: var(--rose);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  }
+
+  /* ── Flow diagram ── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 16px 0;
+  }
+  .flow-step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .flow-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 36px;
+    flex-shrink: 0;
+  }
+  .flow-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .fn-green  { background: var(--green); }
+  .fn-blue   { background: var(--blue);  }
+
+  .flow-line {
+    width: 2px;
+    flex: 1;
+    min-height: 24px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+  .flow-body {
+    padding: 0 0 24px 0;
+    flex: 1;
+  }
+  .flow-body h4 { margin: 6px 0 4px; font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--slate); }
+  .flow-body p  { margin: 0; font-size: 12.5px; }
+
+  /* ── API blocks ── */
+  .api-block {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 14px 0;
+  }
+  .api-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .method {
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: .05em;
+  }
+  .method-get  { background: var(--green-l); color: var(--green); }
+  .method-post { background: var(--blue-l);  color: var(--blue);  }
+  .api-url {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    color: var(--slate);
+    font-weight: 600;
+  }
+  .api-desc { font-size: 12px; color: var(--slate-l); margin-left: auto; }
+  .api-body { padding: 0; }
+  .api-body pre { border-radius: 0; margin: 0; }
+
+  /* ── Table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 12.5px;
+  }
+  th {
+    background: var(--bg);
+    padding: 9px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--slate-l);
+    border: 1px solid var(--border);
+  }
+  td {
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    color: var(--slate-m);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: var(--bg); }
+
+  /* ── Formula box ── */
+  .formula {
+    background: #0f172a;
+    color: #fde68a;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    padding: 16px 20px;
+    border-radius: 10px;
+    margin: 12px 0;
+    text-align: center;
+    letter-spacing: .02em;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 40px 0;
+  }
+
+  /* ── Print ── */
+  @media print {
+    body { padding: 20px 24px; font-size: 12px; }
+    .cover { padding: 30px 0 30px; }
+    .cover h1 { font-size: 26px; }
+    pre { font-size: 10.5px; page-break-inside: avoid; }
+    .section { page-break-inside: avoid; }
+    .api-block { page-break-inside: avoid; }
+    h3 { page-break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ COVER -->
+<div class="cover">
+  <div class="cover-logo">⚽ GAMEPLANR</div>
+  <h1>Algorithm Documentation</h1>
+  <p>Complete technical reference for the KNN Nearby Venues algorithm and the Content-Based Filtering Recommendation algorithm — backend logic, API contracts, and frontend integration.</p>
+  <div class="meta">GamePlanR · Django REST Framework + React · Internal Technical Document</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ TOC -->
+<div class="toc">
+  <h2>Table of Contents</h2>
+  <ol>
+    <li><a href="#knn">Algorithm 1 — KNN Nearby Venues</a>
+      <ol style="padding-left:18px; margin-top:4px;">
+        <li><a href="#knn-concept">Concept &amp; Formula</a></li>
+        <li><a href="#knn-backend">Backend Logic</a></li>
+        <li><a href="#knn-api">API Endpoint</a></li>
+        <li><a href="#knn-frontend">Frontend Flow</a></li>
+      </ol>
+    </li>
+    <li style="margin-top:8px;"><a href="#cbf">Algorithm 2 — Content-Based Filtering Recommendations</a>
+      <ol style="padding-left:18px; margin-top:4px;">
+        <li><a href="#cbf-concept">Concept &amp; Weights</a></li>
+        <li><a href="#cbf-scoring">Scoring Components</a></li>
+        <li><a href="#cbf-coldstart">Cold-Start Fallback</a></li>
+        <li><a href="#cbf-backend">Backend Logic</a></li>
+        <li><a href="#cbf-api">API Endpoint</a></li>
+        <li><a href="#cbf-frontend">Frontend Flow</a></li>
+      </ol>
+    </li>
+    <li style="margin-top:8px;"><a href="#compare">Algorithm Comparison</a></li>
+  </ol>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════ ALGO 1 — KNN -->
+<div class="section" id="knn">
+  <div class="section-header">
+    <div class="section-icon icon-green">📍</div>
+    <h2 class="section-title">
+      <span>Algorithm 1</span>
+      KNN — Nearby Venues
+    </h2>
+  </div>
+
+  <div class="box box-green">
+    <p><strong>Purpose:</strong> Given a user-selected map location, find the K closest active venues within a specified radius using the Haversine distance formula. Returns venues sorted by distance (nearest first).</p>
+  </div>
+
+  <!-- CONCEPT -->
+  <h3 id="knn-concept">Concept &amp; Formula</h3>
+
+  <p>K-Nearest Neighbours (KNN) in this context is a <strong>distance-based search</strong>, not a classifier. For each venue in the database that has GPS coordinates, we calculate its great-circle distance from the user's pinned location on the map. Venues are then ranked by distance and filtered to only those within the user's chosen radius.</p>
+
+  <p>We use the <strong>Haversine formula</strong> to compute the shortest distance between two points on the Earth's surface:</p>
+
+  <div class="formula">
+    a = sin²(Δlat/2) + cos(lat₁) × cos(lat₂) × sin²(Δlon/2)<br>
+    distance = 2 × R × arcsin(√a)<br><br>
+    where R = 6371 km (Earth's mean radius)
+  </div>
+
+  <div class="box box-amber">
+    <p><strong>Why Haversine and not Euclidean distance?</strong> Euclidean (straight-line) distance on a 2D plane does not account for the curvature of the Earth. For small distances (a few km) the error is small, but Haversine is the correct formula for geographic coordinates (latitude/longitude) and has zero extra dependencies.</p>
+  </div>
+
+  <!-- BACKEND -->
+  <h3 id="knn-backend">Backend Logic — Step by Step</h3>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">1</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Validate inputs</h4>
+        <p>Reject the request if <code>latitude</code> or <code>longitude</code> are missing, non-numeric, or out of range (lat ±90, lon ±180). Parse optional <code>k</code> (1–20, default 5) and <code>radius_km</code> (0.1–50, default 2.0).</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">2</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Fetch candidate venues</h4>
+        <p>Query all active venues that have non-null latitude and longitude: <code>Venue.objects.filter(is_active=True).exclude(latitude=None)</code></p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">3</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Compute Haversine distance for every venue</h4>
+        <p>Iterate over every venue; call <code>haversine_km(user_lat, user_lon, venue.latitude, venue.longitude)</code>. Store as a list of <code>(distance, venue)</code> tuples.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">4</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Sort by distance (nearest first)</h4>
+        <p>Sort the list ascending by distance. This is the KNN ranking step.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">5</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Apply radius filter</h4>
+        <p>Discard all entries where <code>distance &gt; radius_km</code>. This is the key correctness step — without it, KNN would always return K venues even if the nearest is 200 km away.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">6</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Take the top K results</h4>
+        <p>Slice <code>within_radius[:k]</code>. Attach <code>venue.distance_km = round(dist, 2)</code> as a Python attribute so the serializer can include it.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">7</div></div>
+      <div class="flow-body">
+        <h4>Serialize and return</h4>
+        <p>Pass through <code>NearbyVenueSerializer</code> which includes name, sport category, city, price, primary image, lat/lon, and computed distance.</p>
+      </div>
+    </div>
+  </div>
+
+  <h4>Python implementation (core function)</h4>
+<pre><span class="kw">def</span> <span class="fn">haversine_km</span>(lat1, lon1, lat2, lon2):
+    R = <span class="nu">6371.0</span>                          <span class="cm"># Earth radius in km</span>
+    phi1, phi2 = <span class="fn">math.radians</span>(lat1), <span class="fn">math.radians</span>(lat2)
+    dphi       = <span class="fn">math.radians</span>(lat2 - lat1)
+    dlambda    = <span class="fn">math.radians</span>(lon2 - lon1)
+    a = (<span class="fn">math.sin</span>(dphi / <span class="nu">2</span>) ** <span class="nu">2</span>
+         + <span class="fn">math.cos</span>(phi1) * <span class="fn">math.cos</span>(phi2)
+         * <span class="fn">math.sin</span>(dlambda / <span class="nu">2</span>) ** <span class="nu">2</span>)
+    <span class="kw">return</span> R * <span class="nu">2</span> * <span class="fn">math.asin</span>(<span class="fn">math.sqrt</span>(a))
+
+<span class="cm"># Score, filter, slice</span>
+scored         = [(haversine_km(user_lat, user_lng, v.latitude, v.longitude), v)
+                  <span class="kw">for</span> v <span class="kw">in</span> venue_list]
+scored.<span class="fn">sort</span>(key=<span class="kw">lambda</span> x: x[<span class="nu">0</span>])
+within_radius  = [(d, v) <span class="kw">for</span> d, v <span class="kw">in</span> scored <span class="kw">if</span> d &lt;= radius_km]
+nearest        = within_radius[:k]</pre>
+
+  <!-- API -->
+  <h3 id="knn-api">API Endpoint</h3>
+
+  <div class="api-block">
+    <div class="api-header">
+      <span class="method method-get">GET</span>
+      <span class="api-url">/api/venues/nearby/</span>
+      <span class="api-desc">AllowAny — no auth required</span>
+    </div>
+  </div>
+
+  <h4>Query Parameters</h4>
+  <table>
+    <tr><th>Parameter</th><th>Type</th><th>Required</th><th>Default</th><th>Constraints</th><th>Description</th></tr>
+    <tr><td><code>latitude</code></td><td>float</td><td>Yes</td><td>—</td><td>−90 to 90</td><td>User's pinned latitude</td></tr>
+    <tr><td><code>longitude</code></td><td>float</td><td>Yes</td><td>—</td><td>−180 to 180</td><td>User's pinned longitude</td></tr>
+    <tr><td><code>k</code></td><td>int</td><td>No</td><td>5</td><td>1 – 20</td><td>Max number of venues to return</td></tr>
+    <tr><td><code>radius_km</code></td><td>float</td><td>No</td><td>2.0</td><td>0.1 – 50</td><td>Search radius in kilometres</td></tr>
+  </table>
+
+  <h4>Example Request</h4>
+<pre>GET /api/venues/nearby/?latitude=27.7172&longitude=85.3240&k=5&radius_km=2</pre>
+
+  <h4>Success Response — 200 OK</h4>
+<pre>{
+  <span class="st">"user_location"</span>: {
+    <span class="st">"latitude"</span>:  <span class="nu">27.7172</span>,
+    <span class="st">"longitude"</span>: <span class="nu">85.3240</span>
+  },
+  <span class="st">"radius_km"</span>: <span class="nu">2.0</span>,
+  <span class="st">"nearest_venues"</span>: [
+    {
+      <span class="st">"id"</span>:            <span class="st">"uuid-..."</span>,
+      <span class="st">"name"</span>:          <span class="st">"Arena Futsal"</span>,
+      <span class="st">"sport_category"</span>: { <span class="st">"id"</span>: 1, <span class="st">"name"</span>: <span class="st">"Futsal"</span> },
+      <span class="st">"city"</span>:          <span class="st">"Kathmandu"</span>,
+      <span class="st">"address"</span>:       <span class="st">"Thamel, KTM"</span>,
+      <span class="st">"latitude"</span>:      <span class="st">"27.7145"</span>,
+      <span class="st">"longitude"</span>:     <span class="st">"85.3123"</span>,
+      <span class="st">"price_per_hour"</span>:<span class="st">"1500.00"</span>,
+      <span class="st">"is_active"</span>:     <span class="kw">true</span>,
+      <span class="st">"primary_image"</span>: <span class="st">"http://..."</span>,
+      <span class="st">"distance_km"</span>:   <span class="nu">0.84</span>        <span class="cm">// computed by Haversine</span>
+    }
+  ]
+}</pre>
+
+  <h4>Error Responses</h4>
+  <table>
+    <tr><th>Status</th><th>Condition</th><th>Response body</th></tr>
+    <tr><td>400</td><td>Missing latitude or longitude</td><td><code>{"detail": "latitude and longitude query parameters are required."}</code></td></tr>
+    <tr><td>400</td><td>Non-numeric coordinates</td><td><code>{"detail": "latitude and longitude must be valid numbers."}</code></td></tr>
+    <tr><td>400</td><td>Out-of-range values</td><td><code>{"detail": "latitude must be between -90 and 90..."}</code></td></tr>
+    <tr><td>200</td><td>No venues within radius</td><td>Returns empty <code>nearest_venues: []</code> — not an error</td></tr>
+  </table>
+
+  <!-- FRONTEND -->
+  <h3 id="knn-frontend">Frontend Flow — NearbyVenuesPage</h3>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">1</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Page loads → pre-fill saved home location</h4>
+        <p>On mount, read <code>user.home_latitude</code> / <code>user.home_longitude</code> from auth context (stored in DB on <code>User</code> model). If present, place a pin on the map at that location.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">2</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>User drops a pin OR searches an address</h4>
+        <p><strong>Map click:</strong> <code>useMapEvents</code> hook fires <code>onClick</code> → sets <code>pin</code> state to <code>{lat, lng}</code>.<br>
+        <strong>Address search:</strong> Nominatim OpenStreetMap geocoding API is called with the user's text query. User selects a suggestion from the dropdown; <code>pin</code> is set to the result's coordinates. The map flies to the new location via <code>useMap().flyTo()</code>.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">3</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Auto-trigger search on pin / radius / k change</h4>
+        <p>A <code>useEffect</code> watches <code>[pin, k, radiusKm]</code>. Whenever any changes, it calls <code>GET /api/venues/nearby/</code> with the current values.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">4</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Render results on map + list</h4>
+        <p>Each venue in <code>nearest_venues</code> gets a numbered Leaflet <code>DivIcon</code> marker on the map. A sidebar list shows name, sport, price, and computed distance. Empty results show an amber "No venues within X km" message.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-green">5</div></div>
+      <div class="flow-body">
+        <h4>Save home location</h4>
+        <p>A "Save as home location" button sends <code>PATCH /api/auth/me/</code> with the current pin coordinates. On success, <code>updateUser()</code> merges them into auth context and localStorage so the pin reappears on next visit.</p>
+      </div>
+    </div>
+  </div>
+
+  <h4>Geocoding API used (Nominatim)</h4>
+<pre>GET https://nominatim.openstreetmap.org/search
+    ?q=Thamel+Kathmandu
+    &format=json
+    &limit=6
+    &addressdetails=1
+
+<span class="cm">// Free, no API key, rate-limit: 1 req/sec</span></pre>
+
+</div>
+
+<div class="divider"></div>
+
+<!-- ═══════════════════════════════════════════════════════ ALGO 2 — CBF -->
+<div class="section" id="cbf">
+  <div class="section-header">
+    <div class="section-icon icon-blue">🧠</div>
+    <h2 class="section-title">
+      <span>Algorithm 2</span>
+      Content-Based Filtering — Recommendations
+    </h2>
+  </div>
+
+  <div class="box box-blue">
+    <p><strong>Purpose:</strong> Analyse the authenticated user's confirmed booking history to build a preference profile (favourite sport, usual price range, preferred facilities), then score every active venue against that profile. Return the top-N venues sorted by match score descending.</p>
+  </div>
+
+  <!-- CONCEPT -->
+  <h3 id="cbf-concept">Concept &amp; Weights</h3>
+
+  <p>Content-Based Filtering recommends items that are <strong>similar to what a user has interacted with before</strong>. Instead of comparing users to each other (collaborative filtering), it compares the <em>features</em> of venues the user has booked to the features of all available venues.</p>
+
+  <p>Each venue is scored on three dimensions. The final score is a weighted sum:</p>
+
+  <div class="formula">
+    final_score = (0.50 × sport_score) + (0.30 × price_score) + (0.20 × facility_score)
+  </div>
+
+  <div class="weights">
+    <div class="weight-card wc-green">
+      <span class="pct">50%</span>
+      <div class="label">Sport Match</div>
+      <div class="desc">How often you've booked this sport relative to all your bookings</div>
+    </div>
+    <div class="weight-card wc-blue">
+      <span class="pct">30%</span>
+      <div class="label">Price Match</div>
+      <div class="desc">How close the venue price is to your average spend per booking</div>
+    </div>
+    <div class="weight-card wc-amber">
+      <span class="pct">20%</span>
+      <div class="label">Facility Match</div>
+      <div class="desc">Overlap between venue facilities and facilities from your past bookings</div>
+    </div>
+  </div>
+
+  <!-- SCORING -->
+  <h3 id="cbf-scoring">Scoring Components</h3>
+
+  <h4>1. Sport Score (50%)</h4>
+  <div class="formula">sport_score = bookings_for_this_sport / total_confirmed_bookings</div>
+  <p>Example: user has 3 Futsal bookings and 1 Cricket booking (4 total). A Futsal venue scores 3/4 = 0.75. A Cricket venue scores 1/4 = 0.25. A Tennis venue scores 0/4 = 0.00.</p>
+
+  <h4>2. Price Score (30%)</h4>
+  <div class="formula">
+    diff = |venue_price − user_avg_price| / user_avg_price<br><br>
+    if diff ≤ 0.20 → price_score = 1.0 (within 20% = perfect match)<br>
+    if diff ≤ 0.50 → price_score = 0.5 (within 50% = partial match)<br>
+    if diff &gt; 0.50 → price_score = 0.0 (too far from usual spend)
+  </div>
+  <p>Example: user's average spend is Rs 1,000/hr. A venue at Rs 900/hr → diff = 10% → score 1.0. A venue at Rs 600/hr → diff = 40% → score 0.5. A venue at Rs 9,000/hr → diff = 800% → score 0.0.</p>
+
+  <h4>3. Facility Score (20%)</h4>
+  <div class="formula">facility_score = |venue_facilities ∩ user_liked_facilities| / |user_liked_facilities|</div>
+  <p>The user's liked facilities are the union of all facilities across every venue they've booked. If the user has booked venues with Parking, Changing Room, and Canteen, and the candidate venue has Parking and Canteen, facility_score = 2/3 = 0.67.</p>
+
+  <div class="box box-purple">
+    <p><strong>Score range:</strong> 0.0 (no match at all) to 1.0 (perfect match on all 3 dimensions). Displayed in the UI as 0–100% with colour coding: ≥75% Excellent (green), ≥50% Good (blue), ≥25% Partial (amber), &lt;25% Low (grey).</p>
+  </div>
+
+  <!-- COLD START -->
+  <h3 id="cbf-coldstart">Cold-Start Fallback</h3>
+
+  <div class="box box-amber">
+    <p><strong>Problem:</strong> A new user with zero bookings has no preference profile. The CBF algorithm cannot score venues because there is no history to compare against.</p>
+  </div>
+
+  <p><strong>Solution — Popularity Ranking:</strong> When a user has no confirmed bookings, the algorithm falls back to counting how many confirmed bookings each venue has received platform-wide, then normalises those counts to a 0–1 score.</p>
+
+  <div class="formula">cold_score = bookings_for_this_venue / max_bookings_any_venue</div>
+
+  <p>Venues with the most confirmed bookings from all users appear first. The reason shown on the card is "Popular with other users". Once the user makes their first confirmed booking, the personalised CBF algorithm activates automatically on the next page load.</p>
+
+  <!-- BACKEND FLOW -->
+  <h3 id="cbf-backend">Backend Logic — Step by Step</h3>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">1</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Parse N parameter</h4>
+        <p>Read <code>?n=</code> from query params (default 6, max 20). This is how many venues to return.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">2</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Fetch user's confirmed bookings</h4>
+        <p>Query <code>Booking.objects.filter(user=request.user).exclude(status=CANCELLED)</code> with related venue, sport category, and facilities. These are the bookings used to build the preference profile.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">3</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Cold-start check</h4>
+        <p>If <code>booking_list</code> is empty → call <code>_cold_start()</code> which ranks by platform-wide booking popularity and returns early.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">4</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Build user preference profile</h4>
+        <p>Iterate bookings to build:<br>
+        • <code>sport_counts</code> — dict of <code>{sport_id: count}</code><br>
+        • <code>prices</code> — list of venue price_per_hour floats<br>
+        • <code>user_facility_ids</code> — set of all facility IDs across booked venues<br>
+        • <code>booked_venue_ids</code> — set of venue IDs (for "Booked before" badge)</p>
+        <p>Compute <code>avg_price = mean(prices)</code> and <code>total_bookings = sum(sport_counts.values())</code>.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">5</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Score every active venue</h4>
+        <p>For each venue, call <code>_sport_score()</code>, <code>_price_score()</code>, <code>_facility_score()</code>. Compute the weighted sum. Store as <code>venue.rec_score</code>. Also set <code>venue.rec_reason</code> (human-readable explanation) and <code>venue.is_previously_booked</code>.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">6</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Sort by score → take top N</h4>
+        <p><code>scored.sort(key=lambda x: (-x[0], x[1]))</code> — descending by score, alphabetical as a tiebreaker. Slice to <code>[:n]</code>.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">7</div></div>
+      <div class="flow-body">
+        <h4>Serialize and return with metadata</h4>
+        <p>Pass through <code>RecommendedVenueSerializer</code>. Response includes algorithm metadata (mode, total bookings analysed, top sport, average price) plus the ranked venue list with <code>score</code> and <code>reason</code> fields.</p>
+      </div>
+    </div>
+  </div>
+
+  <h4>Python implementation (scoring loop)</h4>
+<pre><span class="kw">def</span> <span class="fn">_sport_score</span>(self, venue, sport_counts, total_bookings):
+    <span class="kw">if not</span> venue.sport_category_id <span class="kw">or</span> total_bookings == <span class="nu">0</span>:
+        <span class="kw">return</span> <span class="nu">0.0</span>
+    count = sport_counts.<span class="fn">get</span>(venue.sport_category_id, <span class="nu">0</span>)
+    <span class="kw">return</span> count / total_bookings
+
+<span class="kw">def</span> <span class="fn">_price_score</span>(self, venue, avg_price):
+    <span class="kw">if not</span> venue.price_per_hour <span class="kw">or</span> avg_price &lt;= <span class="nu">0</span>:
+        <span class="kw">return</span> <span class="nu">0.0</span>
+    diff = <span class="fn">abs</span>(<span class="fn">float</span>(venue.price_per_hour) - avg_price) / avg_price
+    <span class="kw">if</span> diff &lt;= <span class="nu">0.20</span>: <span class="kw">return</span> <span class="nu">1.0</span>
+    <span class="kw">if</span> diff &lt;= <span class="nu">0.50</span>: <span class="kw">return</span> <span class="nu">0.5</span>
+    <span class="kw">return</span> <span class="nu">0.0</span>
+
+<span class="kw">def</span> <span class="fn">_facility_score</span>(self, venue, user_facility_ids):
+    <span class="kw">if not</span> user_facility_ids: <span class="kw">return</span> <span class="nu">0.0</span>
+    venue_fids = {f.id <span class="kw">for</span> f <span class="kw">in</span> venue.facilities.<span class="fn">all</span>()}
+    <span class="kw">if not</span> venue_fids: <span class="kw">return</span> <span class="nu">0.0</span>
+    <span class="kw">return</span> <span class="fn">len</span>(venue_fids &amp; user_facility_ids) / <span class="fn">len</span>(user_facility_ids)
+
+<span class="cm"># Main loop</span>
+scored = []
+<span class="kw">for</span> venue <span class="kw">in</span> venue_list:
+    final = (SPORT_W * _sport_score(venue, sport_counts, total)
+           + PRICE_W * _price_score(venue, avg_price)
+           + FACIL_W * _facility_score(venue, user_fac_ids))
+    venue.rec_score = <span class="fn">round</span>(final, <span class="nu">4</span>)
+    venue.rec_reason = _build_reason(venue, sport_counts, avg_price, user_fac_ids)
+    venue.is_previously_booked = venue.id <span class="kw">in</span> booked_venue_ids
+    scored.<span class="fn">append</span>((final, venue.name, venue))
+
+scored.<span class="fn">sort</span>(key=<span class="kw">lambda</span> x: (-x[<span class="nu">0</span>], x[<span class="nu">1</span>]))
+top = [v <span class="kw">for</span> _, _, v <span class="kw">in</span> scored[:n]]</pre>
+
+  <!-- API -->
+  <h3 id="cbf-api">API Endpoint</h3>
+
+  <div class="api-block">
+    <div class="api-header">
+      <span class="method method-get">GET</span>
+      <span class="api-url">/api/venues/recommended/</span>
+      <span class="api-desc">IsAuthenticated — JWT required</span>
+    </div>
+  </div>
+
+  <h4>Query Parameters</h4>
+  <table>
+    <tr><th>Parameter</th><th>Type</th><th>Required</th><th>Default</th><th>Constraints</th><th>Description</th></tr>
+    <tr><td><code>n</code></td><td>int</td><td>No</td><td>6</td><td>1 – 20</td><td>Number of venues to return</td></tr>
+  </table>
+
+  <h4>Example Request</h4>
+<pre>GET /api/venues/recommended/?n=6
+Authorization: Bearer &lt;access_token&gt;</pre>
+
+  <h4>Success Response — Personalised Mode</h4>
+<pre>{
+  <span class="st">"algorithm"</span>:              <span class="st">"content_based_filtering"</span>,
+  <span class="st">"mode"</span>:                   <span class="st">"personalized"</span>,
+  <span class="st">"total_bookings_analyzed"</span>: <span class="nu">3</span>,
+  <span class="st">"top_sport"</span>:              <span class="st">"Futsal"</span>,
+  <span class="st">"avg_price_per_hour"</span>:     <span class="nu">3066.66</span>,
+  <span class="st">"recommended_venues"</span>: [
+    {
+      <span class="st">"id"</span>:                  <span class="st">"uuid-..."</span>,
+      <span class="st">"name"</span>:                <span class="st">"Arena Futsal"</span>,
+      <span class="st">"sport_category"</span>:      { <span class="st">"id"</span>: 1, <span class="st">"name"</span>: <span class="st">"Futsal"</span> },
+      <span class="st">"city"</span>:                <span class="st">"Kathmandu"</span>,
+      <span class="st">"address"</span>:             <span class="st">"Thamel"</span>,
+      <span class="st">"price_per_hour"</span>:      <span class="st">"3000.00"</span>,
+      <span class="st">"is_active"</span>:           <span class="kw">true</span>,
+      <span class="st">"primary_image"</span>:       <span class="st">"http://..."</span>,
+      <span class="st">"score"</span>:               <span class="nu">0.8</span>,      <span class="cm">// 0.0 – 1.0, auto-calculated</span>
+      <span class="st">"reason"</span>:              <span class="st">"You've booked Futsal 3 times · matches your usual price range"</span>,
+      <span class="st">"is_previously_booked"</span>:<span class="kw">true</span>
+    }
+  ]
+}</pre>
+
+  <h4>Success Response — Cold-Start Mode</h4>
+<pre>{
+  <span class="st">"algorithm"</span>: <span class="st">"content_based_filtering"</span>,
+  <span class="st">"mode"</span>:      <span class="st">"cold_start"</span>,        <span class="cm">// user has no bookings</span>
+  <span class="st">"total_bookings_analyzed"</span>: <span class="nu">0</span>,
+  <span class="st">"top_sport"</span>: <span class="kw">null</span>,
+  <span class="st">"avg_price_per_hour"</span>: <span class="nu">0</span>,
+  <span class="st">"recommended_venues"</span>: [
+    {
+      <span class="cm">// same shape, but:</span>
+      <span class="st">"score"</span>:               <span class="nu">1.0</span>,   <span class="cm">// normalised booking count</span>
+      <span class="st">"reason"</span>:              <span class="st">"Popular with other users"</span>,
+      <span class="st">"is_previously_booked"</span>:<span class="kw">false</span>
+    }
+  ]
+}</pre>
+
+  <h4>Response Modes</h4>
+  <table>
+    <tr><th>Mode</th><th>Condition</th><th>Ranking logic</th></tr>
+    <tr><td><code>personalized</code></td><td>User has ≥1 confirmed booking</td><td>CBF weighted score (sport 50% + price 30% + facility 20%)</td></tr>
+    <tr><td><code>cold_start</code></td><td>User has 0 bookings</td><td>Platform-wide confirmed booking count, normalised to 0–1</td></tr>
+    <tr><td><code>no_venues</code></td><td>No active venues exist in DB</td><td>Empty list returned</td></tr>
+  </table>
+
+  <!-- FRONTEND -->
+  <h3 id="cbf-frontend">Frontend Flow — RecommendedVenuesPage</h3>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">1</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Page loads → fetch recommendations</h4>
+        <p>A <code>useEffect</code> watches <code>[n]</code>. On mount (and whenever the user changes the number selector), it calls <code>GET /api/venues/recommended/?n=N</code> with the JWT from auth context. Shows skeleton loading cards while waiting.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">2</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Parse response metadata</h4>
+        <p>Store <code>mode</code>, <code>totalBookings</code>, <code>topSport</code>, <code>avgPrice</code> in state. These drive the header description ("Personalised from your 3 bookings · Favourite sport: Futsal") and the algorithm explainer panel.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">3</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Render venue cards in ranked order</h4>
+        <p>The server returns venues already sorted by score. Cards display: rank badge (#1, #2…), name, city, "Booked before" badge, the match score bar with percentage and label, the reason chip explaining why this venue was recommended, sport, address, and price.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">4</div><div class="flow-line"></div></div>
+      <div class="flow-body">
+        <h4>Match score bar</h4>
+        <p><code>score × 100</code> = percentage. Colour thresholds: ≥75% → emerald (Excellent), ≥50% → blue (Good), ≥25% → amber (Partial), &lt;25% → grey (Low).</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="flow-num fn-blue">5</div></div>
+      <div class="flow-body">
+        <h4>Algorithm explainer panel (collapsible)</h4>
+        <p>Shows weight breakdown (50/30/20) with the user's actual top sport and average price. In cold-start mode, shows a different explanation explaining popularity ranking and encourages the user to make a booking.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="divider"></div>
+
+<!-- ═══════════════════════════════════════════════════════ COMPARISON -->
+<div class="section" id="compare">
+  <div class="section-header">
+    <div class="section-icon icon-green">⚡</div>
+    <h2 class="section-title">
+      <span>Summary</span>
+      Algorithm Comparison
+    </h2>
+  </div>
+
+  <table>
+    <tr>
+      <th>Dimension</th>
+      <th>KNN — Nearby Venues</th>
+      <th>CBF — Recommendations</th>
+    </tr>
+    <tr>
+      <td><strong>Input</strong></td>
+      <td>GPS coordinates (lat/lon)</td>
+      <td>User's booking history</td>
+    </tr>
+    <tr>
+      <td><strong>Output</strong></td>
+      <td>Venues within radius, sorted by distance</td>
+      <td>Venues sorted by personalised match score</td>
+    </tr>
+    <tr>
+      <td><strong>Core maths</strong></td>
+      <td>Haversine great-circle distance</td>
+      <td>Weighted dot-product similarity</td>
+    </tr>
+    <tr>
+      <td><strong>Auth required</strong></td>
+      <td>No (AllowAny)</td>
+      <td>Yes (IsAuthenticated / JWT)</td>
+    </tr>
+    <tr>
+      <td><strong>Cold-start</strong></td>
+      <td>N/A — works with no history</td>
+      <td>Falls back to popularity ranking</td>
+    </tr>
+    <tr>
+      <td><strong>Sort key</strong></td>
+      <td>Distance ascending (nearest first)</td>
+      <td>Weighted score descending (best match first)</td>
+    </tr>
+    <tr>
+      <td><strong>Filter</strong></td>
+      <td>Hard radius cutoff (e.g. 2 km)</td>
+      <td>No filter — all active venues are scored</td>
+    </tr>
+    <tr>
+      <td><strong>Live update</strong></td>
+      <td>Yes — re-fetches on pin/radius/k change</td>
+      <td>Yes — re-fetches on n change</td>
+    </tr>
+    <tr>
+      <td><strong>Page / Route</strong></td>
+      <td><code>/nearby</code> — NearbyVenuesPage</td>
+      <td><code>/recommended</code> — RecommendedVenuesPage</td>
+    </tr>
+    <tr>
+      <td><strong>API endpoint</strong></td>
+      <td><code>GET /api/venues/nearby/</code></td>
+      <td><code>GET /api/venues/recommended/</code></td>
+    </tr>
+    <tr>
+      <td><strong>Map integration</strong></td>
+      <td>Yes — Leaflet.js interactive map</td>
+      <td>No — card grid only</td>
+    </tr>
+    <tr>
+      <td><strong>External service</strong></td>
+      <td>Nominatim (geocoding, address search)</td>
+      <td>None — fully self-contained</td>
+    </tr>
+  </table>
+
+  <div class="box box-green" style="margin-top:24px;">
+    <p><strong>Key insight:</strong> The two algorithms are complementary — KNN answers "what is near me right now?" while CBF answers "what matches my taste?" A user can use both: find a nearby venue on the map, then check recommendations to confirm it aligns with their usual preferences.</p>
+  </div>
+</div>
+
+</body>
+</html>
