@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
+import StarRating from '../components/StarRating'
 import api from '../api/axios'
 
 function formatRs(amount) {
@@ -192,6 +193,16 @@ export default function VenuePage() {
                       <p>
                         <span className="font-semibold text-slate-900">Rate:</span> {formatRs(venue.price_per_hour)} / hour
                       </p>
+                      <div className="flex items-center gap-2 pt-0.5">
+                        <StarRating value={Math.round(venue.average_rating ?? 0)} readonly size="sm" />
+                        {venue.average_rating ? (
+                          <span className="text-xs text-slate-500">
+                            {venue.average_rating} ({venue.rating_count} {venue.rating_count === 1 ? 'review' : 'reviews'})
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">No ratings yet</span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="mt-6 flex items-center justify-between gap-4">

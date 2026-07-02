@@ -5,11 +5,11 @@ from .views import (
     AvailableSlotsView, BookingCancelView, BookingDetailView,
     BookingListCreateView, BookingPayView, EsewaInitiateView, EsewaVerifyView,
     LoginView, LogoutView,
-    NearbyVenuesView,
+    NearbyVenuesView, RecommendedVenuesView,
     NotificationListView, NotificationMarkAllReadView, NotificationMarkReadView,
     OpponentRequestCancelView, OpponentRequestListCreateView, PaymentDetailView,
     RegisterView, SportCategoryListView, UserProfileView, VenueDetailView,
-    VenueListView,
+    VenueListView, VenueRateView, VenueRatingsListView,
 )
 
 urlpatterns = [
@@ -23,8 +23,11 @@ urlpatterns = [
 
     path('venues/', VenueListView.as_view(), name='venue-list'),
     path('venues/nearby/', NearbyVenuesView.as_view(), name='venue-nearby'),
+    path('venues/recommended/', RecommendedVenuesView.as_view(), name='venue-recommended'),
     path('venues/<uuid:pk>/', VenueDetailView.as_view(), name='venue-detail'),
     path('venues/<uuid:pk>/available-slots/', AvailableSlotsView.as_view(), name='venue-available-slots'),
+    path('venues/<uuid:pk>/rate/', VenueRateView.as_view(), name='venue-rate'),
+    path('venues/<uuid:pk>/ratings/', VenueRatingsListView.as_view(), name='venue-ratings'),
 
     path('bookings/', BookingListCreateView.as_view(), name='booking-list-create'),
     path('bookings/<uuid:pk>/', BookingDetailView.as_view(), name='booking-detail'),

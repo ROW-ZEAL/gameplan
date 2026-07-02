@@ -2,11 +2,12 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const navItems = [
-  { id: 'dashboard', label: 'Dashboard', path: '/dashboard' },
-  { id: 'sports', label: 'Sports Category', path: '/sports' },
-  { id: 'venue', label: 'Venue', path: '/venues' },
-  { id: 'nearby', label: 'Nearby Venues', path: '/nearby' },
-  { id: 'booking', label: 'Booking', path: '/booking' },
+  { id: 'dashboard',    label: 'Dashboard',       path: '/dashboard'    },
+  { id: 'sports',       label: 'Sports Category', path: '/sports'       },
+  { id: 'venue',        label: 'Venue',            path: '/venues'       },
+  { id: 'nearby',       label: 'Nearby Venues',   path: '/nearby'       },
+  { id: 'recommended',  label: 'Recommended',     path: '/recommended'  },
+  { id: 'booking',      label: 'Booking',          path: '/booking'      },
 ]
 
 export default function Navbar({ user, onLogout }) {

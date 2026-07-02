@@ -10,6 +10,8 @@ import BookingPage from './pages/BookingPage'
 import EsewaSuccess from './pages/EsewaSuccess'
 import EsewaFailure from './pages/EsewaFailure'
 import NearbyVenuesPage from './pages/NearbyVenuesPage'
+import RecommendedVenuesPage from './pages/RecommendedVenuesPage'
+import VenueDetailPage from './pages/VenueDetailPage'
 
 export default function App() {
   return (
@@ -44,6 +46,14 @@ export default function App() {
           }
         />
         <Route
+          path="/venues/:id"
+          element={
+            <ProtectedRoute>
+              <VenueDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/booking"
           element={
             <ProtectedRoute>
@@ -56,6 +66,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <NearbyVenuesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/recommended"
+          element={
+            <ProtectedRoute>
+              <RecommendedVenuesPage />
             </ProtectedRoute>
           }
         />

@@ -6,7 +6,7 @@ import math
 from datetime import date
 
 from django.conf import settings
-from django.db.models import Q
+from django.db.models import Avg, Count, Q
 from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -18,7 +18,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import (
     Booking, Notification, OpponentRequest, Payment,
-    SportCategory, TimeSlot, User, Venue,
+    SportCategory, TimeSlot, User, Venue, VenueRating,
 )
 from .serializers import (
     BookingCreateSerializer, BookingSerializer,
@@ -26,9 +26,11 @@ from .serializers import (
     NotificationSerializer,
     OpponentRequestCreateSerializer, OpponentRequestSerializer,
     PaymentCreateSerializer, PaymentSerializer,
+    RecommendedVenueSerializer,
     RegisterSerializer, SportCategorySerializer,
     TimeSlotSerializer, UserProfileSerializer,
     VenueDetailSerializer, VenueListSerializer,
+    VenueRatingCreateSerializer, VenueRatingSerializer,
 )
 
 
@@ -105,7 +107,15 @@ class VenueListView(generics.ListAPIView):
     permission_classes = (AllowAny,)
 
     def get_queryset(self):
-        qs = Venue.objects.filter(is_active=True).select_related('sport_category').prefetch_related('images')
+        qs = (
+            Venue.objects.filter(is_active=True)
+            .select_related('sport_category')
+            .prefetch_related('images')
+            .annotate(
+                avg_rating=Avg('ratings__rating'),
+                rating_count=Count('ratings', distinct=True),
+            )
+        )
         sport_category = self.request.query_params.get('sport_category')
         city = self.request.query_params.get('city')
         search = self.request.query_params.get('search')
@@ -123,6 +133,10 @@ class VenueDetailView(generics.RetrieveAPIView):
         Venue.objects.filter(is_active=True)
         .select_related('sport_category')
         .prefetch_related('facilities', 'images', 'time_slots')
+        .annotate(
+            avg_rating=Avg('ratings__rating'),
+            rating_count=Count('ratings', distinct=True),
+        )
     )
     serializer_class = VenueDetailSerializer
     permission_classes = (AllowAny,)
@@ -418,6 +432,222 @@ class NotificationMarkAllReadView(APIView):
         return Response({'detail': 'All notifications marked as read.'})
 
 
+class RecommendedVenuesView(APIView):
+    """
+    Content-Based Filtering recommendation engine.
+
+    Builds a preference profile from the authenticated user's confirmed booking
+    history (sport frequency, average price, facility preferences) and scores
+    every active venue against it.
+
+    Cold-start (no bookings): falls back to venue popularity across all users.
+
+    Query params:
+      n – int, optional (default 6, max 20) — number of venues to return
+    """
+    permission_classes = (IsAuthenticated,)
+
+    SPORT_WEIGHT    = 0.50
+    PRICE_WEIGHT    = 0.30
+    FACILITY_WEIGHT = 0.20
+
+    # ── Entry point ──────────────────────────────────────────────────────────
+
+    def get(self, request):
+        try:
+            n = int(request.query_params.get('n', 6))
+            n = max(1, min(n, 20))
+        except (ValueError, TypeError):
+            n = 6
+
+        confirmed_bookings = (
+            Booking.objects
+            .filter(user=request.user)
+            .exclude(status=Booking.Status.CANCELLED)
+            .select_related('venue__sport_category')
+            .prefetch_related('venue__facilities')
+        )
+
+        all_venues = (
+            Venue.objects.filter(is_active=True)
+            .select_related('sport_category')
+            .prefetch_related('images', 'facilities')
+        )
+
+        venue_list   = list(all_venues)
+        booking_list = list(confirmed_bookings)
+
+        if not venue_list:
+            return Response({
+                'algorithm': 'content_based_filtering',
+                'mode': 'no_venues',
+                'total_bookings_analyzed': 0,
+                'top_sport': None,
+                'avg_price_per_hour': 0,
+                'recommended_venues': [],
+            })
+
+        if not booking_list:
+            return self._cold_start(venue_list, n, request)
+
+        # ── Build user preference profile ─────────────────────────────────
+
+        sport_counts      = {}   # sport_category.id → confirmed booking count
+        prices            = []   # price_per_hour floats from booked venues
+        user_facility_ids = set()
+        booked_venue_ids  = set()
+
+        for booking in booking_list:
+            venue = booking.venue
+            if venue is None:
+                continue
+            booked_venue_ids.add(venue.id)
+            if venue.sport_category_id:
+                sport_counts[venue.sport_category_id] = (
+                    sport_counts.get(venue.sport_category_id, 0) + 1
+                )
+            if venue.price_per_hour:
+                prices.append(float(venue.price_per_hour))
+            for facility in venue.facilities.all():
+                user_facility_ids.add(facility.id)
+
+        total_bookings = sum(sport_counts.values())
+
+        # If every booking had a null venue (data integrity edge case), cold-start
+        if total_bookings == 0:
+            return self._cold_start(venue_list, n, request)
+
+        avg_price = sum(prices) / len(prices) if prices else 0.0
+
+        # ── Score every venue ─────────────────────────────────────────────
+
+        scored = []
+        for venue in venue_list:
+            s_score = self._sport_score(venue, sport_counts, total_bookings)
+            p_score = self._price_score(venue, avg_price)
+            f_score = self._facility_score(venue, user_facility_ids)
+
+            final = (
+                self.SPORT_WEIGHT    * s_score +
+                self.PRICE_WEIGHT    * p_score +
+                self.FACILITY_WEIGHT * f_score
+            )
+
+            venue.rec_score            = round(final, 4)
+            venue.rec_reason           = self._build_reason(
+                venue, sport_counts, avg_price, user_facility_ids
+            )
+            venue.is_previously_booked = venue.id in booked_venue_ids
+            scored.append((final, venue.name, venue))
+
+        scored.sort(key=lambda x: (-x[0], x[1]))
+        top = [v for _, _, v in scored[:n]]
+
+        # Resolve top sport name for the response metadata
+        top_sport_id   = max(sport_counts, key=sport_counts.get)
+        top_sport_name = None
+        for b in booking_list:
+            if b.venue and b.venue.sport_category_id == top_sport_id:
+                top_sport_name = b.venue.sport_category.name
+                break
+
+        serializer = RecommendedVenueSerializer(top, many=True, context={'request': request})
+        return Response({
+            'algorithm': 'content_based_filtering',
+            'mode': 'personalized',
+            'total_bookings_analyzed': len(booking_list),
+            'top_sport': top_sport_name,
+            'avg_price_per_hour': round(avg_price, 2),
+            'recommended_venues': serializer.data,
+        })
+
+    # ── Cold-start fallback ───────────────────────────────────────────────
+
+    def _cold_start(self, venue_list, n, request):
+        from django.db.models import Count as DCount
+        counts = dict(
+            Booking.objects
+            .filter(status=Booking.Status.CONFIRMED)
+            .values('venue_id')
+            .annotate(cnt=DCount('id'))
+            .values_list('venue_id', 'cnt')
+        )
+        max_count = max(counts.values()) if counts else 1
+
+        for venue in venue_list:
+            raw = counts.get(venue.id, 0)
+            venue.rec_score            = round(raw / max_count, 4)
+            venue.rec_reason           = 'Popular with other users'
+            venue.is_previously_booked = False
+
+        venue_list.sort(key=lambda v: (-v.rec_score, v.name))
+        top = venue_list[:n]
+
+        serializer = RecommendedVenueSerializer(top, many=True, context={'request': request})
+        return Response({
+            'algorithm': 'content_based_filtering',
+            'mode': 'cold_start',
+            'total_bookings_analyzed': 0,
+            'top_sport': None,
+            'avg_price_per_hour': 0,
+            'recommended_venues': serializer.data,
+        })
+
+    # ── Sub-score helpers ─────────────────────────────────────────────────
+
+    def _sport_score(self, venue, sport_counts, total_bookings):
+        if not venue.sport_category_id or total_bookings == 0:
+            return 0.0
+        count = sport_counts.get(venue.sport_category_id, 0)
+        return count / total_bookings
+
+    def _price_score(self, venue, avg_price):
+        if not venue.price_per_hour or avg_price <= 0:
+            return 0.0
+        diff = abs(float(venue.price_per_hour) - avg_price) / avg_price
+        if diff <= 0.20:
+            return 1.0
+        if diff <= 0.50:
+            return 0.5
+        return 0.0
+
+    def _facility_score(self, venue, user_facility_ids):
+        if not user_facility_ids:
+            return 0.0
+        venue_fids = {f.id for f in venue.facilities.all()}
+        if not venue_fids:
+            return 0.0
+        return len(venue_fids & user_facility_ids) / len(user_facility_ids)
+
+    def _build_reason(self, venue, sport_counts, avg_price, user_facility_ids):
+        parts = []
+
+        if venue.sport_category_id:
+            count = sport_counts.get(venue.sport_category_id, 0)
+            if count > 0:
+                name = venue.sport_category.name
+                parts.append(
+                    f"You've booked {name} {count} time{'s' if count > 1 else ''}"
+                )
+
+        if venue.price_per_hour and avg_price > 0:
+            diff = abs(float(venue.price_per_hour) - avg_price) / avg_price
+            if diff <= 0.20:
+                parts.append('matches your usual price range')
+            elif diff <= 0.50:
+                parts.append('close to your usual price range')
+
+        if user_facility_ids:
+            venue_fids = {f.id for f in venue.facilities.all()}
+            matching   = venue_fids & user_facility_ids
+            if matching:
+                names = [f.name for f in venue.facilities.all() if f.id in matching][:2]
+                if names:
+                    parts.append(f"has {' & '.join(names)} you like")
+
+        return ' · '.join(parts) if parts else 'Explore something new'
+
+
 class NearbyVenuesView(APIView):
     """
     Returns the K nearest active venues to a given location using KNN (Haversine).
@@ -513,3 +743,64 @@ class NearbyVenuesView(APIView):
             'radius_km': radius_km,
             'nearest_venues': serializer.data,
         })
+
+
+class VenueRateView(APIView):
+    """
+    GET  /venues/<pk>/rate/  — return the authenticated user's existing rating (or nulls)
+    POST /venues/<pk>/rate/  — submit or update a rating (requires confirmed/completed booking)
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def _get_venue(self, pk):
+        try:
+            return Venue.objects.get(pk=pk, is_active=True)
+        except Venue.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        venue = self._get_venue(pk)
+        if venue is None:
+            return Response({'detail': 'Venue not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            rating = VenueRating.objects.get(user=request.user, venue=venue)
+            return Response({'rating': rating.rating, 'review': rating.review})
+        except VenueRating.DoesNotExist:
+            return Response({'rating': None, 'review': None})
+
+    def post(self, request, pk):
+        venue = self._get_venue(pk)
+        if venue is None:
+            return Response({'detail': 'Venue not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = VenueRatingCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        rating_obj, created = VenueRating.objects.update_or_create(
+            user=request.user,
+            venue=venue,
+            defaults={
+                'rating': serializer.validated_data['rating'],
+                'review': serializer.validated_data.get('review', ''),
+            },
+        )
+
+        return Response(
+            VenueRatingSerializer(rating_obj).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class VenueRatingsListView(generics.ListAPIView):
+    """GET /venues/<pk>/ratings/ — paginated list of all ratings for a venue."""
+    serializer_class = VenueRatingSerializer
+    permission_classes = (AllowAny,)
+
+    def get_queryset(self):
+        return (
+            VenueRating.objects
+            .filter(venue_id=self.kwargs['pk'])
+            .select_related('user')
+            .order_by('-created_at')
+        )

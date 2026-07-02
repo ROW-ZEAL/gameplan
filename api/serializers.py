@@ -1,13 +1,14 @@
 from decimal import Decimal
 
 from django.contrib.auth.password_validation import validate_password
+from django.db.models import Avg
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import (
     Booking, Facility, Notification, OpponentRequest,
-    Payment, SportCategory, TimeSlot, User, Venue, VenueImage,
+    Payment, SportCategory, TimeSlot, User, Venue, VenueImage, VenueRating,
 )
 
 
@@ -98,11 +99,17 @@ class TimeSlotSerializer(serializers.ModelSerializer):
 
 class VenueListSerializer(serializers.ModelSerializer):
     sport_category = SportCategorySerializer(read_only=True)
-    primary_image = serializers.SerializerMethodField()
+    primary_image  = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+    rating_count   = serializers.SerializerMethodField()
 
     class Meta:
         model = Venue
-        fields = ('id', 'name', 'sport_category', 'city', 'address', 'price_per_hour', 'is_active', 'primary_image')
+        fields = (
+            'id', 'name', 'sport_category', 'city', 'address',
+            'price_per_hour', 'is_active', 'primary_image',
+            'average_rating', 'rating_count',
+        )
 
     def get_primary_image(self, obj):
         image = obj.images.first()
@@ -113,12 +120,25 @@ class VenueListSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(image.image.url)
         return image.image.url
 
+    def get_average_rating(self, obj):
+        if hasattr(obj, 'avg_rating') and obj.avg_rating is not None:
+            return round(float(obj.avg_rating), 1)
+        result = obj.ratings.aggregate(avg=Avg('rating'))
+        return round(float(result['avg']), 1) if result['avg'] else None
+
+    def get_rating_count(self, obj):
+        if hasattr(obj, 'rating_count'):
+            return obj.rating_count
+        return obj.ratings.count()
+
 
 class VenueDetailSerializer(serializers.ModelSerializer):
     sport_category = SportCategorySerializer(read_only=True)
-    facilities = FacilitySerializer(many=True, read_only=True)
-    images = VenueImageSerializer(many=True, read_only=True)
-    time_slots = serializers.SerializerMethodField()
+    facilities     = FacilitySerializer(many=True, read_only=True)
+    images         = VenueImageSerializer(many=True, read_only=True)
+    time_slots     = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+    rating_count   = serializers.SerializerMethodField()
 
     class Meta:
         model = Venue
@@ -126,10 +146,22 @@ class VenueDetailSerializer(serializers.ModelSerializer):
             'id', 'name', 'sport_category', 'description', 'address', 'city',
             'latitude', 'longitude', 'price_per_hour', 'opening_time', 'closing_time',
             'is_active', 'facilities', 'images', 'time_slots',
+            'average_rating', 'rating_count',
         )
 
     def get_time_slots(self, obj):
         return TimeSlotSerializer(obj.time_slots.filter(is_active=True), many=True).data
+
+    def get_average_rating(self, obj):
+        if hasattr(obj, 'avg_rating') and obj.avg_rating is not None:
+            return round(float(obj.avg_rating), 1)
+        result = obj.ratings.aggregate(avg=Avg('rating'))
+        return round(float(result['avg']), 1) if result['avg'] else None
+
+    def get_rating_count(self, obj):
+        if hasattr(obj, 'rating_count'):
+            return obj.rating_count
+        return obj.ratings.count()
 
 
 class BookingSerializer(serializers.ModelSerializer):
@@ -334,3 +366,42 @@ class NearbyVenueSerializer(serializers.ModelSerializer):
         if request:
             return request.build_absolute_uri(image.image.url)
         return image.image.url
+
+
+class RecommendedVenueSerializer(serializers.ModelSerializer):
+    sport_category       = SportCategorySerializer(read_only=True)
+    primary_image        = serializers.SerializerMethodField()
+    score                = serializers.FloatField(source='rec_score', read_only=True)
+    reason               = serializers.CharField(source='rec_reason', read_only=True)
+    is_previously_booked = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Venue
+        fields = (
+            'id', 'name', 'sport_category', 'city', 'address',
+            'price_per_hour', 'is_active', 'primary_image',
+            'score', 'reason', 'is_previously_booked',
+        )
+
+    def get_primary_image(self, obj):
+        image = obj.images.first()
+        if not image:
+            return None
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(image.image.url)
+        return image.image.url
+
+
+class VenueRatingSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
+
+    class Meta:
+        model  = VenueRating
+        fields = ('id', 'user_name', 'rating', 'review', 'created_at')
+        read_only_fields = ('id', 'user_name', 'created_at')
+
+
+class VenueRatingCreateSerializer(serializers.Serializer):
+    rating = serializers.IntegerField(min_value=1, max_value=5)
+    review = serializers.CharField(allow_blank=True, required=False, default='')

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import PaymentModal from '../components/PaymentModal'
+import StarRating from '../components/StarRating'
 import api from '../api/axios'
 
 function formatRs(amount) {
@@ -22,7 +23,13 @@ export default function BookingPage() {
   const [error, setError] = useState(null)
   const [cancellingId, setCancellingId] = useState(null)
   const [cancelError, setCancelError] = useState(null)
-  const [payingBooking, setPayingBooking] = useState(null) // booking object shown in modal
+  const [payingBooking, setPayingBooking] = useState(null)
+  const [ratingBooking, setRatingBooking] = useState(null)
+  const [ratingValue, setRatingValue] = useState(0)
+  const [ratingReview, setRatingReview] = useState('')
+  const [ratingSubmitting, setRatingSubmitting] = useState(false)
+  const [ratingError, setRatingError] = useState(null)
+  const [ratingLoadingId, setRatingLoadingId] = useState(null)
 
   async function handleLogout() {
     await logout()
@@ -99,8 +106,59 @@ export default function BookingPage() {
   function canPay(b) {
     if (b.status === 'CANCELLED') return false
     if (b.payment_status === 'PAID') return false
-    if (b.payment_info) return false // already has a payment record
+    if (b.payment_info) return false
     return true
+  }
+
+  function canRate(b) {
+    return b.status === 'CONFIRMED' || b.status === 'COMPLETED'
+  }
+
+  async function openRating(b) {
+    setRatingBooking(b)
+    setRatingValue(0)
+    setRatingReview('')
+    setRatingError(null)
+    setRatingLoadingId(b.id)
+    try {
+      const { data } = await api.get(`/venues/${b.venue}/rate/`)
+      if (data.rating) {
+        setRatingValue(data.rating)
+        setRatingReview(data.review || '')
+      }
+    } catch {
+      // no existing rating — leave defaults
+    } finally {
+      setRatingLoadingId(null)
+    }
+  }
+
+  function closeRating() {
+    setRatingBooking(null)
+    setRatingValue(0)
+    setRatingReview('')
+    setRatingError(null)
+  }
+
+  async function submitRating(e) {
+    e.preventDefault()
+    if (!ratingValue) {
+      setRatingError('Please select a star rating.')
+      return
+    }
+    setRatingSubmitting(true)
+    setRatingError(null)
+    try {
+      await api.post(`/venues/${ratingBooking.venue}/rate/`, {
+        rating: ratingValue,
+        review: ratingReview,
+      })
+      closeRating()
+    } catch (err) {
+      setRatingError(err?.response?.data?.detail || 'Failed to submit rating.')
+    } finally {
+      setRatingSubmitting(false)
+    }
   }
 
   return (
@@ -196,6 +254,16 @@ export default function BookingPage() {
                             Pay
                           </button>
                         )}
+
+                        {canRate(b) && (
+                          <button
+                            onClick={() => openRating(b)}
+                            disabled={ratingLoadingId === b.id}
+                            className="rounded-full bg-amber-500 px-4 py-2 text-xs font-semibold text-white transition hover:bg-amber-600 disabled:opacity-60"
+                          >
+                            {ratingLoadingId === b.id ? '…' : '★ Rate'}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -214,6 +282,62 @@ export default function BookingPage() {
             handlePaymentSuccess(updated)
           }}
         />
+      )}
+
+      {ratingBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/40" onClick={closeRating} />
+          <form
+            onSubmit={submitRating}
+            className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg"
+          >
+            <h3 className="text-lg font-semibold text-slate-900">Rate {ratingBooking.venue_name}</h3>
+            <p className="mt-1 text-sm text-slate-500">Your feedback helps others find great venues.</p>
+
+            <div className="mt-5 flex flex-col items-center gap-3">
+              <StarRating value={ratingValue} onChange={setRatingValue} size="md" />
+              <p className="text-xs text-slate-500">
+                {ratingValue === 0 ? 'Tap a star to rate' :
+                 ratingValue === 1 ? 'Poor' :
+                 ratingValue === 2 ? 'Fair' :
+                 ratingValue === 3 ? 'Good' :
+                 ratingValue === 4 ? 'Very good' : 'Excellent'}
+              </p>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-sm text-slate-700 mb-1">Review (optional)</label>
+              <textarea
+                rows={3}
+                value={ratingReview}
+                onChange={(e) => setRatingReview(e.target.value)}
+                placeholder="Share your experience…"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            {ratingError && (
+              <p className="mt-2 text-sm text-rose-600">{ratingError}</p>
+            )}
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeRating}
+                className="rounded-md px-4 py-2 text-sm text-slate-600 hover:text-slate-900"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={ratingSubmitting}
+                className="rounded-full bg-amber-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:opacity-60"
+              >
+                {ratingSubmitting ? 'Submitting…' : 'Submit rating'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   )

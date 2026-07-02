@@ -16,7 +16,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator, RegexValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -595,6 +595,34 @@ class Notification(BaseModel):
             models.Index(fields=["user", "is_read"]),
             models.Index(fields=["user", "notification_type"]),
         ]
+
+    def mark_as_read(self):
+        if not self.is_read:
+            self.is_read = True
+            self.save(update_fields=["is_read", "updated_at"])
+
+
+class VenueRating(BaseModel):
+    """
+    One rating per user per venue, only allowed when the user has a
+    confirmed or completed booking at that venue.
+    """
+    user   = models.ForeignKey(User,  on_delete=models.CASCADE, related_name="venue_ratings")
+    venue  = models.ForeignKey(Venue, on_delete=models.CASCADE, related_name="ratings")
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+    )
+    review = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name        = _("Venue Rating")
+        verbose_name_plural = _("Venue Ratings")
+        unique_together     = [("user", "venue")]
+        ordering            = ["-created_at"]
+        indexes             = [models.Index(fields=["venue"])]
+
+    def __str__(self):
+        return f"{self.user.full_name} → {self.venue.name}: {self.rating}★"
 
     def __str__(self):
         read_flag = "✓" if self.is_read else "●"
