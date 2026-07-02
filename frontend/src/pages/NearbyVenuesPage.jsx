@@ -83,8 +83,9 @@ export default function NearbyVenuesPage() {
   const { user, logout, updateUser } = useAuth()
   const navigate = useNavigate()
 
-  const [pin, setPin] = useState(null)          // { lat, lng }
-  const [k, setK]     = useState(5)
+  const [pin, setPin]         = useState(null)   // { lat, lng }
+  const [k, setK]             = useState(5)
+  const [radiusKm, setRadiusKm] = useState(2)
   const [results, setResults]   = useState(null)
   const [loading, setLoading]   = useState(false)
   const [geoLoading, setGeoLoading] = useState(false)
@@ -117,7 +118,7 @@ export default function NearbyVenuesPage() {
     }
   }, [])   // run once on mount
 
-  // ── Auto-search when pin or k changes ──
+  // ── Auto-search when pin, k, or radius changes ──
   useEffect(() => {
     if (!pin) return
     let cancelled = false
@@ -127,7 +128,7 @@ export default function NearbyVenuesPage() {
       setError(null)
       try {
         const { data } = await api.get('/venues/nearby/', {
-          params: { latitude: pin.lat, longitude: pin.lng, k },
+          params: { latitude: pin.lat, longitude: pin.lng, k, radius_km: radiusKm },
         })
         if (!cancelled) setResults(data)
       } catch (err) {
@@ -139,7 +140,7 @@ export default function NearbyVenuesPage() {
 
     fetchNearby()
     return () => { cancelled = true }
-  }, [pin, k])
+  }, [pin, k, radiusKm])
 
   // ── Handlers ──
   async function handleLogout() {
@@ -333,6 +334,20 @@ export default function NearbyVenuesPage() {
             {geoLoading ? 'Detecting…' : 'Use my location'}
           </button>
 
+          {/* Radius selector */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-slate-600">Radius</label>
+            <select
+              value={radiusKm}
+              onChange={(e) => setRadiusKm(Number(e.target.value))}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              {[1, 2, 5, 10, 20].map((r) => (
+                <option key={r} value={r}>{r} km</option>
+              ))}
+            </select>
+          </div>
+
           {/* K selector */}
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-slate-600">Show</label>
@@ -464,9 +479,19 @@ export default function NearbyVenuesPage() {
           <section className="space-y-4">
             <h2 className="text-lg font-semibold text-slate-800">
               {results.nearest_venues.length > 0
-                ? `${results.nearest_venues.length} nearest venues`
-                : 'No venues found with location data yet'}
+                ? `${results.nearest_venues.length} venue${results.nearest_venues.length > 1 ? 's' : ''} within ${results.radius_km ?? radiusKm} km`
+                : `No venues found within ${results.radius_km ?? radiusKm} km of your location`}
             </h2>
+
+            {results.nearest_venues.length === 0 && (
+              <div className="rounded-3xl border border-amber-200 bg-amber-50 p-10 text-center shadow-sm">
+                <p className="text-2xl mb-2">📭</p>
+                <p className="text-base font-semibold text-amber-800">No venues within {results.radius_km ?? radiusKm} km</p>
+                <p className="mt-1 text-sm text-amber-700">
+                  Try increasing the radius or searching a different area.
+                </p>
+              </div>
+            )}
 
             {results.nearest_venues.length > 0 && (
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

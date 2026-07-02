@@ -425,7 +425,8 @@ class NearbyVenuesView(APIView):
     Query params:
       latitude  – float, required
       longitude – float, required
-      k         – int, optional (default 5, max 20)
+      k         – int,   optional (default 5, max 20)
+      radius_km – float, optional (default 2.0, max 50) — venues beyond this distance are excluded
     """
     permission_classes = (AllowAny,)
 
@@ -462,6 +463,12 @@ class NearbyVenuesView(APIView):
         except ValueError:
             k = 5
 
+        try:
+            radius_km = float(request.query_params.get('radius_km', 2.0))
+            radius_km = max(0.1, min(radius_km, 50.0))
+        except ValueError:
+            radius_km = 2.0
+
         venues = (
             Venue.objects.filter(is_active=True)
             .exclude(latitude=None)
@@ -493,13 +500,16 @@ class NearbyVenuesView(APIView):
 
         scored.sort(key=lambda x: x[0])
 
+        within_radius = [(dist, venue) for dist, venue in scored if dist <= radius_km]
+
         nearest = []
-        for dist_km, venue in scored[:k]:
+        for dist_km, venue in within_radius[:k]:
             venue.distance_km = round(dist_km, 2)
             nearest.append(venue)
 
         serializer = NearbyVenueSerializer(nearest, many=True, context={'request': request})
         return Response({
             'user_location': {'latitude': user_lat, 'longitude': user_lng},
+            'radius_km': radius_km,
             'nearest_venues': serializer.data,
         })
