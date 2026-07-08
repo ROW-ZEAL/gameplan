@@ -168,6 +168,7 @@ class BookingSerializer(serializers.ModelSerializer):
     venue_name = serializers.CharField(source='venue.name', read_only=True)
     time_slot_start = serializers.SerializerMethodField()
     time_slot_end   = serializers.SerializerMethodField()
+    booked_time_slots = serializers.SerializerMethodField()
     is_cancellable  = serializers.BooleanField(read_only=True)
     user = UserProfileSerializer(read_only=True)
     payment_info = serializers.SerializerMethodField()
@@ -177,10 +178,31 @@ class BookingSerializer(serializers.ModelSerializer):
         return f"{hour}:{t.strftime('%M %p')}"
 
     def get_time_slot_start(self, obj):
-        return self._fmt_time(obj.time_slot.start_time)
+        # Get start time from all booked slots (earliest start time)
+        slots = obj.time_slots.all().order_by('start_time')
+        if slots.exists():
+            return self._fmt_time(slots.first().start_time)
+        # Fallback to single time_slot for backward compatibility
+        if obj.time_slot:
+            return self._fmt_time(obj.time_slot.start_time)
+        return None
 
     def get_time_slot_end(self, obj):
-        return self._fmt_time(obj.time_slot.end_time)
+        # Get end time from all booked slots (latest end time)
+        slots = obj.time_slots.all().order_by('-end_time')
+        if slots.exists():
+            return self._fmt_time(slots.first().end_time)
+        # Fallback to single time_slot for backward compatibility
+        if obj.time_slot:
+            return self._fmt_time(obj.time_slot.end_time)
+        return None
+
+    def get_booked_time_slots(self, obj):
+        # Return all booked slots, sorted by start time
+        slots = obj.time_slots.all().order_by('start_time')
+        if not slots.exists() and obj.time_slot:
+            slots = [obj.time_slot]
+        return TimeSlotSerializer(slots, many=True).data
 
     def get_payment_info(self, obj):
         if not hasattr(obj, 'payment'):
@@ -200,56 +222,101 @@ class BookingSerializer(serializers.ModelSerializer):
         fields = (
             'user',
             'id', 'booking_reference', 'venue', 'venue_name', 'time_slot',
-            'time_slot_start', 'time_slot_end', 'booking_date', 'total_amount',
+            'time_slot_start', 'time_slot_end', 'booked_time_slots', 'booking_date', 'total_amount',
             'status', 'payment_status', 'notes', 'is_cancellable', 'payment_info', 'created_at',
         )
 
 
 class BookingCreateSerializer(serializers.ModelSerializer):
+    time_slot_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        write_only=True,
+    )
+
     class Meta:
         model = Booking
-        fields = ('venue', 'time_slot', 'booking_date', 'notes')
+        fields = ('venue', 'time_slot', 'time_slot_ids', 'booking_date', 'notes')
 
     def validate(self, attrs):
-        venue = attrs['venue']
-        time_slot = attrs['time_slot']
-        booking_date = attrs['booking_date']
+        venue = attrs.get('venue')
+        time_slot = attrs.get('time_slot')
+        time_slot_ids = attrs.get('time_slot_ids', [])
+        booking_date = attrs.get('booking_date')
 
         if not venue.is_active:
             raise serializers.ValidationError({'venue': 'This venue is not active.'})
 
-        if time_slot.venue_id != venue.pk:
-            raise serializers.ValidationError({'time_slot': 'Time slot does not belong to the selected venue.'})
-
-        if not time_slot.is_active:
-            raise serializers.ValidationError({'time_slot': 'This time slot is not available.'})
-
         if booking_date < timezone.localdate():
             raise serializers.ValidationError({'booking_date': 'Booking date cannot be in the past.'})
 
-        conflicting = Booking.objects.filter(
-            venue=venue,
-            time_slot=time_slot,
-            booking_date=booking_date,
-        ).exclude(status=Booking.Status.CANCELLED)
+        # Determine which slots to validate
+        slots_to_check = []
+        if time_slot_ids:
+            slots_to_check = list(TimeSlot.objects.filter(id__in=time_slot_ids, venue=venue, is_active=True))
+            if len(slots_to_check) != len(time_slot_ids):
+                raise serializers.ValidationError({'time_slot_ids': 'One or more time slots are invalid or inactive.'})
+        elif time_slot:
+            slots_to_check = [time_slot]
+            if time_slot.venue_id != venue.pk:
+                raise serializers.ValidationError({'time_slot': 'Time slot does not belong to the selected venue.'})
+            if not time_slot.is_active:
+                raise serializers.ValidationError({'time_slot': 'This time slot is not available.'})
+        else:
+            raise serializers.ValidationError({'time_slot': 'At least one time slot must be selected.'})
 
-        if self.instance:
-            conflicting = conflicting.exclude(pk=self.instance.pk)
+        # Check for past slots on today's date
+        if booking_date == timezone.localdate():
+            current_time = timezone.localtime(timezone.now()).time()
+            for slot in slots_to_check:
+                if slot.end_time <= current_time:
+                    raise serializers.ValidationError({'time_slot': f'The slot {slot.start_time} - {slot.end_time} has already passed.'})
 
-        if conflicting.exists():
-            raise serializers.ValidationError({'time_slot': 'This slot is already booked for the selected date.'})
+        # Check for conflicts with existing bookings
+        for slot in slots_to_check:
+            conflicting = Booking.objects.filter(
+                venue=venue,
+                booking_date=booking_date,
+                status__in=[Booking.Status.PENDING, Booking.Status.CONFIRMED]
+            )
+            # Check if any existing booking has this time slot
+            if conflicting.filter(time_slot=slot).exists():
+                raise serializers.ValidationError({'time_slot': f'The slot {slot.start_time} - {slot.end_time} is already booked.'})
+            # Also check in time_slots ManyToMany
+            if conflicting.filter(time_slots=slot).exists():
+                raise serializers.ValidationError({'time_slot': f'The slot {slot.start_time} - {slot.end_time} is already booked.'})
 
         return attrs
 
     def create(self, validated_data):
         venue = validated_data['venue']
-        time_slot = validated_data['time_slot']
-        total_amount = Decimal(str(time_slot.duration_hours)) * venue.price_per_hour
-        return Booking.objects.create(
+        time_slot = validated_data.get('time_slot')
+        time_slot_ids = validated_data.pop('time_slot_ids', [])
+        
+        # Calculate total amount
+        slots_to_book = []
+        if time_slot_ids:
+            slots_to_book = TimeSlot.objects.filter(id__in=time_slot_ids)
+        elif time_slot:
+            slots_to_book = [time_slot]
+        
+        total_duration = sum(Decimal(str(slot.duration_hours)) for slot in slots_to_book)
+        total_amount = total_duration * venue.price_per_hour
+        
+        booking = Booking.objects.create(
             user=self.context['request'].user,
+            time_slot=time_slot,  # Set primary time_slot to first slot for backward compatibility
             total_amount=total_amount.quantize(Decimal('0.01')),
             **validated_data,
         )
+        
+        # Add all slots to the ManyToMany relationship
+        if time_slot_ids:
+            booking.time_slots.set(time_slot_ids)
+        elif time_slot:
+            booking.time_slots.add(time_slot)
+        
+        return booking
 
 
 class PaymentSerializer(serializers.ModelSerializer):

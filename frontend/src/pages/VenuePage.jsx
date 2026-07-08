@@ -26,7 +26,7 @@ export default function VenuePage() {
     // booking modal state
     const [activeVenue, setActiveVenue] = useState(null)
     const [bookingDate, setBookingDate] = useState('')
-    const [timeSlot, setTimeSlot] = useState('')
+    const [selectedTimeSlots, setSelectedTimeSlots] = useState([])
     const [amount, setAmount] = useState('')
     const [availableTimeSlots, setAvailableTimeSlots] = useState([])
     const [notes, setNotes] = useState('')
@@ -72,7 +72,7 @@ export default function VenuePage() {
         try {
           setActiveVenue(venue)
           setBookingDate('')
-          setTimeSlot('')
+          setSelectedTimeSlots([])
           setAmount(venue.price_per_hour || '')
           setNotes('')
           setSubmitError(null)
@@ -86,6 +86,7 @@ export default function VenuePage() {
     async function handleDateChange(e) {
       const date = e.target.value
       setBookingDate(date)
+      setSelectedTimeSlots([])
       if (!date || !activeVenue) {
         setAvailableTimeSlots([])
         return
@@ -95,13 +96,69 @@ export default function VenuePage() {
         const { data } = await api.get(`/venues/${activeVenue.id}/available-slots/`, {
           params: { date }
         })
-        setAvailableTimeSlots(data)
-        setTimeSlot('')
+        
+        // Filter out past time slots if booking date is today
+        const today = new Date().toISOString().split('T')[0]
+        let filteredSlots = data
+        
+        if (date === today) {
+          const now = new Date()
+          const currentHour = now.getHours()
+          const currentMinute = now.getMinutes()
+          const currentTime = currentHour * 60 + currentMinute // in minutes
+          
+          filteredSlots = data.filter(slot => {
+            // Parse end time (format: "H:MM AM/PM")
+            const endTimeParts = slot.end_time.match(/(\d+):(\d+)\s(AM|PM)/)
+            if (endTimeParts) {
+              let endHour = parseInt(endTimeParts[1])
+              const endMinute = parseInt(endTimeParts[2])
+              if (endTimeParts[3] === 'PM' && endHour !== 12) endHour += 12
+              if (endTimeParts[3] === 'AM' && endHour === 12) endHour = 0
+              const endTime = endHour * 60 + endMinute
+              
+              return endTime > currentTime
+            }
+            return true
+          })
+        }
+        
+        setAvailableTimeSlots(filteredSlots)
         setSubmitError(null)
       } catch (err) {
         setSubmitError('Unable to load available time slots.')
         setAvailableTimeSlots([])
       }
+    }
+
+    function handleTimeSlotToggle(slotId) {
+      setSelectedTimeSlots(prev => {
+        const newSelection = prev.includes(slotId)
+          ? prev.filter(id => id !== slotId)
+          : [...prev, slotId]
+        
+        // Sort selected slots by their start time
+        const selectedSlots = availableTimeSlots
+          .filter(ts => newSelection.includes(ts.id))
+          .sort((a, b) => a.start_time.localeCompare(b.start_time))
+        
+        // Calculate total amount based on selected slots
+        if (selectedSlots.length > 0) {
+          const totalHours = selectedSlots.reduce((sum, slot) => {
+            // Parse duration from format "X hr" or "X hrs" or "X.X hrs"
+            const durationStr = slot.duration_hours.match(/[\d.]+/)[0]
+            return sum + parseFloat(durationStr)
+          }, 0)
+          setAmount((totalHours * activeVenue.price_per_hour).toFixed(2))
+        } else {
+          setAmount(activeVenue.price_per_hour)
+        }
+        
+        return newSelection.map(id => {
+          const slot = availableTimeSlots.find(ts => ts.id === id)
+          return slot
+        }).sort((a, b) => a.start_time.localeCompare(b.start_time)).map(s => s.id)
+      })
     }
 
     function closeBooking() {
@@ -113,14 +170,20 @@ export default function VenuePage() {
     async function submitBooking(e) {
       e.preventDefault()
       if (!activeVenue) return
+      
+      // Validate that at least one slot is selected
+      if (selectedTimeSlots.length === 0) {
+        setSubmitError('Please select at least one time slot.')
+        return
+      }
+      
       setSubmitting(true)
       setSubmitError(null)
 
       const payload = {
         venue: activeVenue.id,
         booking_date: bookingDate,
-        time_slot: timeSlot || null,
-        total_amount: amount || activeVenue.price_per_hour || '0.00',
+        time_slot_ids: selectedTimeSlots,
         notes: notes || '',
       }
 
@@ -130,7 +193,7 @@ export default function VenuePage() {
         closeBooking()
         navigate('/booking')
       } catch (err) {
-        setSubmitError(err?.response?.data?.detail || 'Failed to create booking.')
+        setSubmitError(err?.response?.data?.detail || err?.response?.data?.time_slot_ids?.[0] || 'Failed to create booking.')
       } finally {
         setSubmitting(false)
       }
@@ -243,20 +306,29 @@ export default function VenuePage() {
                     className="w-full rounded-md border border-slate-200 px-3 py-2"
                   />
 
-                  <label className="block text-sm text-slate-700">Time slot</label>
-                  <select
-                    required
-                    value={timeSlot}
-                    onChange={(e) => setTimeSlot(e.target.value)}
-                    className="w-full rounded-md border border-slate-200 px-3 py-2"
-                  >
-                    <option value="">Select a time slot</option>
-                    {availableTimeSlots.map((ts) => (
-                      <option key={ts.id} value={ts.id}>
-                        {ts.start_time} - {ts.end_time}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-sm text-slate-700">Time slots (select one or more)</label>
+                  <div className="max-h-48 overflow-y-auto rounded-md border border-slate-200 p-2">
+                    {availableTimeSlots.length === 0 ? (
+                      <p className="text-sm text-slate-500">No available time slots</p>
+                    ) : (
+                      availableTimeSlots.map((ts) => (
+                        <label key={ts.id} className="flex items-center gap-3 p-2 hover:bg-slate-50">
+                          <input
+                            type="checkbox"
+                            checked={selectedTimeSlots.includes(ts.id)}
+                            onChange={() => handleTimeSlotToggle(ts.id)}
+                            className="rounded border-slate-300"
+                          />
+                          <span className="text-sm text-slate-700">{ts.start_time} - {ts.end_time}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  {selectedTimeSlots.length > 0 && (
+                    <p className="mt-2 text-xs text-slate-500">
+                      {selectedTimeSlots.length} slot(s) selected
+                    </p>
+                  )}
 
                   <label className="block text-sm text-slate-700">Total amount</label>
                   <input
@@ -264,8 +336,8 @@ export default function VenuePage() {
                     type="number"
                     step="0.01"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="w-full rounded-md border border-slate-200 px-3 py-2"
+                    readOnly
+                    className="w-full rounded-md border border-slate-200 px-3 py-2 bg-slate-50"
                   />
 
                   <label className="block text-sm text-slate-700">Notes</label>
@@ -285,7 +357,7 @@ export default function VenuePage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || selectedTimeSlots.length === 0}
                     className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
                   >
                     {submitting ? 'Booking...' : 'Confirm booking'}
