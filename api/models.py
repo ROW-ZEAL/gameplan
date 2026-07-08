@@ -307,6 +307,13 @@ class Booking(BaseModel):
         TimeSlot,
         on_delete=models.PROTECT,
         related_name="bookings",
+        null=True,
+        blank=True,
+    )
+    time_slots = models.ManyToManyField(
+        TimeSlot,
+        related_name="bookings_multi",
+        blank=True,
     )
 
     booking_date      = models.DateField(db_index=True)

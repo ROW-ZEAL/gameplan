@@ -164,16 +164,33 @@ class AvailableSlotsView(APIView):
         if booking_date < timezone.localdate():
             return Response({'detail': 'Cannot check availability for past dates.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        booked_slot_ids = (
-            Booking.objects.filter(
-                venue=venue,
-                booking_date=booking_date,
-                status__in=[Booking.Status.PENDING, Booking.Status.CONFIRMED]
-            )
-            .values_list('time_slot_id', flat=True)
+        # Get booked slot IDs from both single time_slot FK and time_slots ManyToMany
+        bookings = Booking.objects.filter(
+            venue=venue,
+            booking_date=booking_date,
+            status__in=[Booking.Status.PENDING, Booking.Status.CONFIRMED]
+        )
+        
+        # Collect all booked slot IDs
+        booked_slot_ids = set()
+        
+        # Add slots from single time_slot field
+        booked_slot_ids.update(
+            bookings.exclude(time_slot__isnull=True).values_list('time_slot_id', flat=True)
+        )
+        
+        # Add slots from time_slots ManyToMany field
+        booked_slot_ids.update(
+            bookings.values_list('time_slots__id', flat=True).distinct()
         )
 
         available_slots = TimeSlot.objects.filter(venue=venue, is_active=True).exclude(id__in=booked_slot_ids)
+        
+        # Filter out past time slots if booking date is today
+        if booking_date == timezone.localdate():
+            current_time = timezone.localtime(timezone.now()).time()
+            available_slots = available_slots.exclude(end_time__lte=current_time)
+        
         return Response(TimeSlotSerializer(available_slots, many=True).data)
 class BookingListCreateView(generics.ListCreateAPIView):
     permission_classes = (IsAuthenticated,)
