@@ -208,39 +208,39 @@ class PaymentAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None): return _is_super(request.user)
 
 
-@admin.register(OpponentRequest)
-class OpponentRequestAdmin(admin.ModelAdmin):
-    list_display  = ("requested_by", "sport_category", "skill_level", "status", "created_at")
-    list_filter   = ("status", "skill_level", "sport_category")
-    search_fields = ("requested_by__email",)
+# @admin.register(OpponentRequest)
+# class OpponentRequestAdmin(admin.ModelAdmin):
+#     list_display  = ("requested_by", "sport_category", "skill_level", "status", "created_at")
+#     list_filter   = ("status", "skill_level", "sport_category")
+#     search_fields = ("requested_by__email",)
 
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        if _is_super(request.user):
-            return qs
-        return qs.filter(booking__venue__owner=request.user)
+#     def get_queryset(self, request):
+#         qs = super().get_queryset(request)
+#         if _is_super(request.user):
+#             return qs
+#         return qs.filter(booking__venue__owner=request.user)
 
-    def get_readonly_fields(self, request, obj=None):
-        if _is_venue_admin(request.user):
-            return [f.name for f in OpponentRequest._meta.fields]
-        return ()
+#     def get_readonly_fields(self, request, obj=None):
+#         if _is_venue_admin(request.user):
+#             return [f.name for f in OpponentRequest._meta.fields]
+#         return ()
 
-    def has_view_permission(self, request, obj=None):   return True
-    def has_add_permission(self, request):              return _is_super(request.user)
-    def has_change_permission(self, request, obj=None): return True
-    def has_delete_permission(self, request, obj=None): return _is_super(request.user)
+#     def has_view_permission(self, request, obj=None):   return True
+#     def has_add_permission(self, request):              return _is_super(request.user)
+#     def has_change_permission(self, request, obj=None): return True
+#     def has_delete_permission(self, request, obj=None): return _is_super(request.user)
 
 
-@admin.register(OpponentMatch)
-class OpponentMatchAdmin(admin.ModelAdmin):
-    list_display = ("opponent_request", "matched_user", "status", "matched_at")
-    list_filter  = ("status",)
+# @admin.register(OpponentMatch)
+# class OpponentMatchAdmin(admin.ModelAdmin):
+#     list_display = ("opponent_request", "matched_user", "status", "matched_at")
+#     list_filter  = ("status",)
 
-    def has_view_permission(self, request, obj=None):   return _is_super(request.user)
-    def has_add_permission(self, request):              return _is_super(request.user)
-    def has_change_permission(self, request, obj=None): return _is_super(request.user)
-    def has_delete_permission(self, request, obj=None): return _is_super(request.user)
-    def has_module_permission(self, request):                return _is_super(request.user)
+#     def has_view_permission(self, request, obj=None):   return _is_super(request.user)
+#     def has_add_permission(self, request):              return _is_super(request.user)
+#     def has_change_permission(self, request, obj=None): return _is_super(request.user)
+#     def has_delete_permission(self, request, obj=None): return _is_super(request.user)
+#     def has_module_permission(self, request):                return _is_super(request.user)
 
 
 @admin.register(Notification)

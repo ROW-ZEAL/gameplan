@@ -472,3 +472,159 @@ class VenueRatingSerializer(serializers.ModelSerializer):
 class VenueRatingCreateSerializer(serializers.Serializer):
     rating = serializers.IntegerField(min_value=1, max_value=5)
     review = serializers.CharField(allow_blank=True, required=False, default='')
+
+
+# =============================================================================
+# ADMIN SERIALIZERS — only accessible by SUPER_ADMIN role
+# =============================================================================
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """Full user record for admin panel. Never exposes password fields."""
+    class Meta:
+        model = User
+        fields = (
+            'id', 'email', 'full_name', 'phone_number',
+            'role', 'is_active', 'is_verified', 'is_revoked',
+            'is_staff', 'created_at', 'updated_at',
+        )
+        read_only_fields = ('id', 'email', 'created_at', 'updated_at')
+
+
+class AdminUserUpdateSerializer(serializers.ModelSerializer):
+    """Allows admin to update user role, active status."""
+    class Meta:
+        model = User
+        fields = ('role', 'is_active', 'is_verified')
+
+
+class AdminSportSerializer(serializers.ModelSerializer):
+    venue_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SportCategory
+        fields = ('id', 'name', 'icon', 'description', 'venue_count')
+
+    def get_venue_count(self, obj):
+        return obj.venues.count()
+
+
+class AdminSportWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SportCategory
+        fields = ('name', 'description', 'icon')
+
+
+class AdminVenueOwnerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('id', 'full_name', 'email')
+
+
+class AdminVenueSerializer(serializers.ModelSerializer):
+    sport_category = SportCategorySerializer(read_only=True)
+    owner = AdminVenueOwnerSerializer(read_only=True)
+    image_count = serializers.SerializerMethodField()
+    booking_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Venue
+        fields = (
+            'id', 'name', 'sport_category', 'owner', 'description',
+            'address', 'city', 'latitude', 'longitude',
+            'price_per_hour', 'opening_time', 'closing_time',
+            'is_active', 'image_count', 'booking_count', 'created_at',
+        )
+
+    def get_image_count(self, obj):
+        return obj.images.count()
+
+    def get_booking_count(self, obj):
+        return obj.bookings.count()
+
+
+class AdminVenueWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Venue
+        fields = (
+            'name', 'sport_category', 'owner', 'description',
+            'address', 'city', 'latitude', 'longitude',
+            'price_per_hour', 'opening_time', 'closing_time', 'is_active',
+        )
+
+    def validate_owner(self, owner):
+        allowed_roles = [User.Role.VENUE_ADMIN, User.Role.SUPER_ADMIN]
+        if owner.role not in allowed_roles:
+            raise serializers.ValidationError(
+                'Owner must have VENUE_ADMIN or SUPER_ADMIN role.'
+            )
+        return owner
+
+
+class AdminBookingUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('id', 'full_name', 'email')
+
+
+class AdminBookingSerializer(serializers.ModelSerializer):
+    user = AdminBookingUserSerializer(read_only=True)
+    venue_name = serializers.CharField(source='venue.name', read_only=True)
+    venue_city = serializers.CharField(source='venue.city', read_only=True)
+    sport_name = serializers.CharField(source='venue.sport_category.name', read_only=True)
+    time_slot_display = serializers.SerializerMethodField()
+    payment_info = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Booking
+        fields = (
+            'id', 'booking_reference', 'user', 'venue', 'venue_name',
+            'venue_city', 'sport_name', 'time_slot_display',
+            'booking_date', 'total_amount', 'status', 'payment_status',
+            'notes', 'payment_info', 'created_at',
+        )
+
+    def get_time_slot_display(self, obj):
+        slots = obj.time_slots.all().order_by('start_time')
+        if slots.exists():
+            first = slots.first()
+            last = slots.last()
+            return f"{first.start_time.strftime('%I:%M %p')} – {last.end_time.strftime('%I:%M %p')}"
+        if obj.time_slot:
+            s = obj.time_slot
+            return f"{s.start_time.strftime('%I:%M %p')} – {s.end_time.strftime('%I:%M %p')}"
+        return None
+
+    def get_payment_info(self, obj):
+        if not hasattr(obj, 'payment'):
+            return None
+        p = obj.payment
+        return {
+            'id': str(p.id),
+            'payment_method': p.payment_method,
+            'transaction_id': p.transaction_id,
+            'status': p.status,
+            'amount': str(p.amount),
+            'paid_at': p.paid_at,
+        }
+
+
+class AdminBookingUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Booking
+        fields = ('status', 'payment_status', 'notes')
+
+
+class AdminPaymentSerializer(serializers.ModelSerializer):
+    booking_reference = serializers.CharField(source='booking.booking_reference', read_only=True)
+    user_email = serializers.CharField(source='booking.user.email', read_only=True)
+    user_name = serializers.CharField(source='booking.user.full_name', read_only=True)
+    venue_name = serializers.CharField(source='booking.venue.name', read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = (
+            'id', 'booking', 'booking_reference', 'user_email', 'user_name',
+            'venue_name', 'payment_method', 'transaction_id',
+            'amount', 'status', 'paid_at', 'created_at',
+        )
+

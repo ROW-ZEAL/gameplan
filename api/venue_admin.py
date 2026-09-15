@@ -199,20 +199,20 @@ venue_admin_site.register(Payment, PaymentAdmin)
 # ─────────────────────────────────────────────────────────────────────────────
 # Opponent Request — view only, filtered to own venue bookings
 # ─────────────────────────────────────────────────────────────────────────────
-class OpponentRequestAdmin(VenueBaseAdmin):
-    list_display  = ("requested_by", "sport_category", "skill_level", "status", "created_at")
-    list_filter   = ("status", "skill_level", "sport_category")
-    search_fields = ("requested_by__email",)
+# class OpponentRequestAdmin(VenueBaseAdmin):
+#     list_display  = ("requested_by", "sport_category", "skill_level", "status", "created_at")
+#     list_filter   = ("status", "skill_level", "sport_category")
+#     search_fields = ("requested_by__email",)
 
-    def get_queryset(self, request):
-        return super().get_queryset(request).filter(booking__venue__owner=request.user)
+#     def get_queryset(self, request):
+#         return super().get_queryset(request).filter(booking__venue__owner=request.user)
 
-    def has_add_permission(self, request):              return False
-    def has_change_permission(self, request, obj=None): return False
-    def has_delete_permission(self, request, obj=None): return False
+#     def has_add_permission(self, request):              return False
+#     def has_change_permission(self, request, obj=None): return False
+#     def has_delete_permission(self, request, obj=None): return False
 
 
-venue_admin_site.register(OpponentRequest, OpponentRequestAdmin)
+# venue_admin_site.register(OpponentRequest, OpponentRequestAdmin)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

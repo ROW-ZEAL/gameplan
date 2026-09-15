@@ -6,10 +6,10 @@ import math
 from datetime import date
 
 from django.conf import settings
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 from rest_framework import generics, status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
@@ -21,6 +21,11 @@ from .models import (
     SportCategory, TimeSlot, User, Venue, VenueRating,
 )
 from .serializers import (
+    AdminBookingSerializer, AdminBookingUpdateSerializer,
+    AdminPaymentSerializer,
+    AdminSportSerializer, AdminSportWriteSerializer,
+    AdminUserSerializer, AdminUserUpdateSerializer,
+    AdminVenueSerializer, AdminVenueWriteSerializer,
     BookingCreateSerializer, BookingSerializer,
     CustomTokenObtainPairSerializer, NearbyVenueSerializer,
     NotificationSerializer,
@@ -32,6 +37,22 @@ from .serializers import (
     VenueDetailSerializer, VenueListSerializer,
     VenueRatingCreateSerializer, VenueRatingSerializer,
 )
+
+
+# =============================================================================
+# ADMIN PERMISSION
+# =============================================================================
+
+class IsSuperAdmin(BasePermission):
+    """Only users with role=SUPER_ADMIN can access these views."""
+    message = 'Access restricted to Super Admins only.'
+
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == User.Role.SUPER_ADMIN
+        )
 
 
 def _esewa_signature(total_amount, transaction_uuid, product_code):
@@ -821,3 +842,350 @@ class VenueRatingsListView(generics.ListAPIView):
             .select_related('user')
             .order_by('-created_at')
         )
+
+
+# =============================================================================
+# ADMIN VIEWS — all require IsSuperAdmin permission
+# =============================================================================
+
+class AdminDashboardStatsView(APIView):
+    """
+    GET /api/admin/stats/
+    Returns aggregate statistics for the admin dashboard.
+    """
+    permission_classes = (IsSuperAdmin,)
+
+    def get(self, request):
+        total_users    = User.objects.count()
+        total_venues   = Venue.objects.count()
+        total_bookings = Booking.objects.count()
+
+        revenue_agg = Payment.objects.filter(
+            status=Payment.Status.SUCCESS
+        ).aggregate(total=Sum('amount'))
+        total_revenue = float(revenue_agg['total'] or 0)
+
+        # Booking breakdown by status
+        booking_counts = dict(
+            Booking.objects.values('status')
+            .annotate(cnt=Count('id'))
+            .values_list('status', 'cnt')
+        )
+
+        # Recent bookings
+        recent_bookings = (
+            Booking.objects
+            .select_related('user', 'venue', 'venue__sport_category')
+            .prefetch_related('time_slots')
+            .order_by('-created_at')[:10]
+        )
+
+        # Recent payments
+        recent_payments = (
+            Payment.objects
+            .select_related('booking__user', 'booking__venue')
+            .order_by('-created_at')[:10]
+        )
+
+        # Venue stats
+        active_venues   = Venue.objects.filter(is_active=True).count()
+        inactive_venues = Venue.objects.filter(is_active=False).count()
+
+        return Response({
+            'total_users':    total_users,
+            'total_venues':   total_venues,
+            'active_venues':  active_venues,
+            'inactive_venues': inactive_venues,
+            'total_bookings': total_bookings,
+            'total_revenue':  total_revenue,
+            'booking_status': {
+                'pending':   booking_counts.get('PENDING',   0),
+                'confirmed': booking_counts.get('CONFIRMED', 0),
+                'completed': booking_counts.get('COMPLETED', 0),
+                'cancelled': booking_counts.get('CANCELLED', 0),
+            },
+            'recent_bookings': AdminBookingSerializer(recent_bookings, many=True).data,
+            'recent_payments': AdminPaymentSerializer(recent_payments, many=True).data,
+        })
+
+
+class AdminUserListView(generics.ListAPIView):
+    """
+    GET /api/admin/users/
+    List all users with optional search & role filter.
+    """
+    serializer_class = AdminUserSerializer
+    permission_classes = (IsSuperAdmin,)
+
+    def get_queryset(self):
+        qs = User.objects.all().order_by('-created_at')
+        search = self.request.query_params.get('search')
+        role   = self.request.query_params.get('role')
+        if search:
+            qs = qs.filter(
+                Q(email__icontains=search) | Q(full_name__icontains=search)
+            )
+        if role:
+            qs = qs.filter(role=role)
+        return qs
+
+
+class AdminUserDetailView(generics.RetrieveUpdateAPIView):
+    """
+    GET  /api/admin/users/<pk>/  — user detail
+    PATCH /api/admin/users/<pk>/ — update role / active status
+    """
+    permission_classes = (IsSuperAdmin,)
+    queryset = User.objects.all()
+
+    def get_serializer_class(self):
+        if self.request.method in ('PUT', 'PATCH'):
+            return AdminUserUpdateSerializer
+        return AdminUserSerializer
+
+
+class AdminVenueListCreateView(generics.ListCreateAPIView):
+    """
+    GET  /api/admin/venues/  — all venues (active + inactive)
+    POST /api/admin/venues/  — create a new venue
+    """
+    permission_classes = (IsSuperAdmin,)
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return AdminVenueWriteSerializer
+        return AdminVenueSerializer
+
+    def get_queryset(self):
+        qs = (
+            Venue.objects.all()
+            .select_related('sport_category', 'owner')
+            .prefetch_related('images')
+            .order_by('-created_at')
+        )
+        search = self.request.query_params.get('search')
+        sport  = self.request.query_params.get('sport')
+        city   = self.request.query_params.get('city')
+        active = self.request.query_params.get('is_active')
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(city__icontains=search))
+        if sport:
+            qs = qs.filter(sport_category__name__iexact=sport)
+        if city:
+            qs = qs.filter(city__iexact=city)
+        if active is not None:
+            qs = qs.filter(is_active=active.lower() == 'true')
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = AdminVenueWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        venue = serializer.save()
+        return Response(AdminVenueSerializer(venue).data, status=status.HTTP_201_CREATED)
+
+
+class AdminVenueDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    /api/admin/venues/<pk>/ — venue detail
+    PATCH  /api/admin/venues/<pk>/ — update venue
+    DELETE /api/admin/venues/<pk>/ — deactivate (soft delete)
+    """
+    permission_classes = (IsSuperAdmin,)
+    queryset = Venue.objects.all().select_related('sport_category', 'owner')
+
+    def get_serializer_class(self):
+        if self.request.method in ('PUT', 'PATCH'):
+            return AdminVenueWriteSerializer
+        return AdminVenueSerializer
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = AdminVenueWriteSerializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        venue = serializer.save()
+        return Response(AdminVenueSerializer(venue).data)
+
+    def destroy(self, request, *args, **kwargs):
+        """Soft-delete: deactivate instead of hard-deleting."""
+        venue = self.get_object()
+        venue.is_active = False
+        venue.save(update_fields=['is_active', 'updated_at'])
+        return Response({'detail': 'Venue deactivated successfully.'}, status=status.HTTP_200_OK)
+
+
+class AdminBookingListView(generics.ListAPIView):
+    """
+    GET /api/admin/bookings/
+    All bookings with optional filters.
+    """
+    serializer_class = AdminBookingSerializer
+    permission_classes = (IsSuperAdmin,)
+
+    def get_queryset(self):
+        qs = (
+            Booking.objects.all()
+            .select_related('user', 'venue', 'venue__sport_category', 'time_slot')
+            .prefetch_related('time_slots')
+            .order_by('-created_at')
+        )
+        search  = self.request.query_params.get('search')
+        bstatus = self.request.query_params.get('status')
+        pstatus = self.request.query_params.get('payment_status')
+        date_from = self.request.query_params.get('date_from')
+        date_to   = self.request.query_params.get('date_to')
+        if search:
+            qs = qs.filter(
+                Q(booking_reference__icontains=search)
+                | Q(user__email__icontains=search)
+                | Q(venue__name__icontains=search)
+            )
+        if bstatus:
+            qs = qs.filter(status=bstatus.upper())
+        if pstatus:
+            qs = qs.filter(payment_status=pstatus.upper())
+        if date_from:
+            qs = qs.filter(booking_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(booking_date__lte=date_to)
+        return qs
+
+
+class AdminBookingDetailView(generics.RetrieveUpdateAPIView):
+    """
+    GET   /api/admin/bookings/<pk>/ — booking detail
+    PATCH /api/admin/bookings/<pk>/ — update status / payment_status
+    """
+    permission_classes = (IsSuperAdmin,)
+    queryset = (
+        Booking.objects.all()
+        .select_related('user', 'venue', 'venue__sport_category', 'time_slot')
+        .prefetch_related('time_slots')
+    )
+
+    def get_serializer_class(self):
+        if self.request.method in ('PUT', 'PATCH'):
+            return AdminBookingUpdateSerializer
+        return AdminBookingSerializer
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = AdminBookingUpdateSerializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        booking = serializer.save()
+
+        payment_status = request.data.get('payment_status')
+        if payment_status == Booking.PaymentStatus.PAID and hasattr(booking, 'payment'):
+            booking.payment.status = Payment.Status.SUCCESS
+            booking.payment.paid_at = timezone.now()
+            booking.payment.save(update_fields=['status', 'paid_at', 'updated_at'])
+
+        if payment_status == Booking.PaymentStatus.REFUNDED and hasattr(booking, 'payment'):
+            booking.payment.status = Payment.Status.REFUNDED
+            booking.payment.save(update_fields=['status', 'updated_at'])
+
+        return Response(AdminBookingSerializer(booking).data)
+
+
+class AdminSportListCreateView(generics.ListCreateAPIView):
+    """
+    GET  /api/admin/sports/ — all sports
+    POST /api/admin/sports/ — create sport
+    """
+    permission_classes = (IsSuperAdmin,)
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return AdminSportWriteSerializer
+        return AdminSportSerializer
+
+    def get_queryset(self):
+        qs = SportCategory.objects.all().order_by('name')
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(name__icontains=search)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = AdminSportWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        sport = serializer.save()
+        return Response(AdminSportSerializer(sport).data, status=status.HTTP_201_CREATED)
+
+
+class AdminSportDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    /api/admin/sports/<pk>/ — sport detail
+    PATCH  /api/admin/sports/<pk>/ — update sport
+    DELETE /api/admin/sports/<pk>/ — delete sport (only if no venues)
+    """
+    permission_classes = (IsSuperAdmin,)
+    queryset = SportCategory.objects.all()
+
+    def get_serializer_class(self):
+        if self.request.method in ('PUT', 'PATCH'):
+            return AdminSportWriteSerializer
+        return AdminSportSerializer
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = AdminSportWriteSerializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        sport = serializer.save()
+        return Response(AdminSportSerializer(sport).data)
+
+    def destroy(self, request, *args, **kwargs):
+        sport = self.get_object()
+        if sport.venues.exists():
+            return Response(
+                {'detail': 'Cannot delete a sport that has venues assigned to it.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        sport.delete()
+        return Response({'detail': 'Sport deleted successfully.'}, status=status.HTTP_200_OK)
+
+
+class AdminPaymentListView(generics.ListAPIView):
+    """
+    GET /api/admin/payments/
+    All payment records with optional filters.
+    """
+    serializer_class = AdminPaymentSerializer
+    permission_classes = (IsSuperAdmin,)
+
+    def get_queryset(self):
+        qs = (
+            Payment.objects.all()
+            .select_related('booking__user', 'booking__venue')
+            .order_by('-created_at')
+        )
+        search  = self.request.query_params.get('search')
+        pstatus = self.request.query_params.get('status')
+        method  = self.request.query_params.get('method')
+        if search:
+            qs = qs.filter(
+                Q(transaction_id__icontains=search)
+                | Q(booking__booking_reference__icontains=search)
+                | Q(booking__user__email__icontains=search)
+            )
+        if pstatus:
+            qs = qs.filter(status=pstatus.upper())
+        if method:
+            qs = qs.filter(payment_method=method.upper())
+        return qs
+
+
+class AdminVenueAdminListView(generics.ListAPIView):
+    """
+    GET /api/admin/venue-admins/
+    Returns users who have VENUE_ADMIN or SUPER_ADMIN role (for owner dropdown).
+    """
+    serializer_class = AdminUserSerializer
+    permission_classes = (IsSuperAdmin,)
+
+    def get_queryset(self):
+        return User.objects.filter(
+            role__in=[User.Role.VENUE_ADMIN, User.Role.SUPER_ADMIN]
+        ).order_by('full_name')
