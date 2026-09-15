@@ -159,18 +159,35 @@ venue_admin_site.register(TimeSlot, TimeSlotAdmin)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Booking — view only, filtered to own venues
+# Booking — view and status change, filtered to own venues
 # ─────────────────────────────────────────────────────────────────────────────
 class BookingAdmin(VenueBaseAdmin):
     list_display  = ("booking_reference", "user", "venue", "booking_date", "status", "payment_status", "total_amount")
     list_filter   = ("status", "payment_status", "booking_date")
     search_fields = ("booking_reference", "user__email")
+    actions = ["accept_bookings", "reject_bookings", "cancel_bookings"]
+    readonly_fields = ("booking_reference", "user", "venue", "time_slot", "time_slots", "booking_date", "total_amount", "payment_status", "notes", "created_at", "updated_at")
+
+    def accept_bookings(self, request, queryset):
+        updated = queryset.filter(status=Booking.Status.PENDING).update(status=Booking.Status.CONFIRMED)
+        self.message_user(request, f"{updated} booking(s) accepted.")
+    accept_bookings.short_description = "Accept selected bookings"
+
+    def reject_bookings(self, request, queryset):
+        updated = queryset.filter(status__in=[Booking.Status.PENDING, Booking.Status.CONFIRMED]).update(status=Booking.Status.CANCELLED)
+        self.message_user(request, f"{updated} booking(s) rejected.")
+    reject_bookings.short_description = "Reject selected bookings"
+
+    def cancel_bookings(self, request, queryset):
+        updated = queryset.filter(status__in=[Booking.Status.PENDING, Booking.Status.CONFIRMED]).update(status=Booking.Status.CANCELLED)
+        self.message_user(request, f"{updated} booking(s) cancelled.")
+    cancel_bookings.short_description = "Cancel selected bookings"
 
     def get_queryset(self, request):
         return super().get_queryset(request).filter(venue__owner=request.user)
 
     def has_add_permission(self, request):              return False
-    def has_change_permission(self, request, obj=None): return False
+    def has_change_permission(self, request, obj=None): return True  # Allow status changes
     def has_delete_permission(self, request, obj=None): return False
 
 

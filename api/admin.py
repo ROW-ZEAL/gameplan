@@ -166,6 +166,22 @@ class BookingAdmin(admin.ModelAdmin):
     list_filter     = ("status", "payment_status", "booking_date")
     search_fields   = ("booking_reference", "user__email", "venue__name")
     readonly_fields = ("booking_reference", "created_at", "updated_at")
+    actions = ["accept_bookings", "reject_bookings", "cancel_bookings"]
+
+    def accept_bookings(self, request, queryset):
+        updated = queryset.filter(status=Booking.Status.PENDING).update(status=Booking.Status.CONFIRMED)
+        self.message_user(request, f"{updated} booking(s) accepted.")
+    accept_bookings.short_description = "Accept selected bookings"
+
+    def reject_bookings(self, request, queryset):
+        updated = queryset.filter(status__in=[Booking.Status.PENDING, Booking.Status.CONFIRMED]).update(status=Booking.Status.CANCELLED)
+        self.message_user(request, f"{updated} booking(s) rejected.")
+    reject_bookings.short_description = "Reject selected bookings"
+
+    def cancel_bookings(self, request, queryset):
+        updated = queryset.filter(status__in=[Booking.Status.PENDING, Booking.Status.CONFIRMED]).update(status=Booking.Status.CANCELLED)
+        self.message_user(request, f"{updated} booking(s) cancelled.")
+    cancel_bookings.short_description = "Cancel selected bookings"
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -175,12 +191,14 @@ class BookingAdmin(admin.ModelAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         if _is_venue_admin(request.user):
-            return [f.name for f in Booking._meta.fields]
+            readonly = [f.name for f in Booking._meta.fields]
+            readonly.remove("status")  # Allow venue admins to change status
+            return readonly
         return self.readonly_fields
 
     def has_view_permission(self, request, obj=None):   return True
     def has_add_permission(self, request):              return _is_super(request.user)
-    def has_change_permission(self, request, obj=None): return True   # fields are read-only for venue admins
+    def has_change_permission(self, request, obj=None): return True
     def has_delete_permission(self, request, obj=None): return _is_super(request.user)
 
 

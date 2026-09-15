@@ -630,12 +630,3 @@ class VenueRating(BaseModel):
 
     def __str__(self):
         return f"{self.user.full_name} → {self.venue.name}: {self.rating}★"
-
-    def __str__(self):
-        read_flag = "✓" if self.is_read else "●"
-        return f"{read_flag} [{self.notification_type}] → {self.user}: {self.title}"
-
-    def mark_as_read(self):
-        if not self.is_read:
-            self.is_read = True
-            self.save(update_fields=["is_read", "updated_at"])
