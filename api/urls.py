@@ -10,17 +10,27 @@ from .views import (
     OpponentRequestCancelView, OpponentRequestListCreateView, PaymentDetailView,
     RegisterView, SportCategoryListView, UserProfileView, VenueDetailView,
     VenueListView, VenueRateView, VenueRatingsListView,
+    # Admin views
+    AdminDashboardStatsView,
+    AdminUserListView, AdminUserDetailView,
+    AdminVenueListCreateView, AdminVenueDetailView, AdminVenueAdminListView,
+    AdminBookingListView, AdminBookingDetailView,
+    AdminSportListCreateView, AdminSportDetailView,
+    AdminPaymentListView,
 )
 
 urlpatterns = [
+    # ── Auth ──────────────────────────────────────────────────────────────────
     path('auth/register/', RegisterView.as_view(), name='auth-register'),
     path('auth/login/', LoginView.as_view(), name='auth-login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='auth-refresh'),
     path('auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path('auth/me/', UserProfileView.as_view(), name='auth-me'),
 
+    # ── Sports ────────────────────────────────────────────────────────────────
     path('sport-categories/', SportCategoryListView.as_view(), name='sport-category-list'),
 
+    # ── Venues ────────────────────────────────────────────────────────────────
     path('venues/', VenueListView.as_view(), name='venue-list'),
     path('venues/nearby/', NearbyVenuesView.as_view(), name='venue-nearby'),
     path('venues/recommended/', RecommendedVenuesView.as_view(), name='venue-recommended'),
@@ -29,19 +39,38 @@ urlpatterns = [
     path('venues/<uuid:pk>/rate/', VenueRateView.as_view(), name='venue-rate'),
     path('venues/<uuid:pk>/ratings/', VenueRatingsListView.as_view(), name='venue-ratings'),
 
+    # ── Bookings ──────────────────────────────────────────────────────────────
     path('bookings/', BookingListCreateView.as_view(), name='booking-list-create'),
     path('bookings/<uuid:pk>/', BookingDetailView.as_view(), name='booking-detail'),
     path('bookings/<uuid:pk>/cancel/', BookingCancelView.as_view(), name='booking-cancel'),
     path('bookings/<uuid:pk>/pay/', BookingPayView.as_view(), name='booking-pay'),
     path('bookings/<uuid:pk>/initiate-esewa/', EsewaInitiateView.as_view(), name='booking-initiate-esewa'),
 
+    # ── Payments ──────────────────────────────────────────────────────────────
     path('payments/<uuid:pk>/', PaymentDetailView.as_view(), name='payment-detail'),
     path('esewa/verify/', EsewaVerifyView.as_view(), name='esewa-verify'),
 
+    # ── Opponents ─────────────────────────────────────────────────────────────
     path('opponent-requests/', OpponentRequestListCreateView.as_view(), name='opponent-request-list-create'),
     path('opponent-requests/<uuid:pk>/cancel/', OpponentRequestCancelView.as_view(), name='opponent-request-cancel'),
 
+    # ── Notifications ─────────────────────────────────────────────────────────
     path('notifications/', NotificationListView.as_view(), name='notification-list'),
     path('notifications/read-all/', NotificationMarkAllReadView.as_view(), name='notification-read-all'),
     path('notifications/<uuid:pk>/read/', NotificationMarkReadView.as_view(), name='notification-read'),
+
+    # ── Admin API (SUPER_ADMIN only) ──────────────────────────────────────────
+    path('admin/stats/',                AdminDashboardStatsView.as_view(),  name='admin-stats'),
+    path('admin/users/',                AdminUserListView.as_view(),         name='admin-user-list'),
+    path('admin/users/<uuid:pk>/',      AdminUserDetailView.as_view(),       name='admin-user-detail'),
+    path('admin/venues/',               AdminVenueListCreateView.as_view(),  name='admin-venue-list'),
+    path('admin/venues/<uuid:pk>/',     AdminVenueDetailView.as_view(),      name='admin-venue-detail'),
+    path('admin/venue-admins/',         AdminVenueAdminListView.as_view(),   name='admin-venue-admins'),
+    path('admin/bookings/',             AdminBookingListView.as_view(),      name='admin-booking-list'),
+    path('admin/bookings/<uuid:pk>/',   AdminBookingDetailView.as_view(),    name='admin-booking-detail'),
+    path('admin/sports/',               AdminSportListCreateView.as_view(),  name='admin-sport-list'),
+    path('admin/sports/<uuid:pk>/',     AdminSportDetailView.as_view(),      name='admin-sport-detail'),
+    path('admin/payments/',             AdminPaymentListView.as_view(),      name='admin-payment-list'),
 ]
+
+

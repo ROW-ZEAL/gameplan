@@ -153,7 +153,7 @@ function AlgorithmPanel({ meta }) {
         className="flex w-full items-center justify-between px-5 py-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
       >
         <span className="flex items-center gap-2">
-          🧠 <span>How does this recommendation work?</span>
+           <span>How does this recommendation work?</span>
         </span>
         <span className="text-slate-400">{open ? '▲' : '▼'}</span>
       </button>

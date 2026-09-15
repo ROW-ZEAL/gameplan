@@ -149,9 +149,12 @@ export default function NearbyVenuesPage() {
   }
 
   const handleMapClick = useCallback((lat, lng) => {
-    setSaveStatus(null)
-    setPin({ lat, lng })
-  }, [])
+  setSaveStatus(null)
+  setPin({
+    lat: Number(lat.toFixed(6)),
+    lng: Number(lng.toFixed(6)),
+  })
+}, [])
 
   function detectLocation() {
     if (!navigator.geolocation) {
@@ -162,7 +165,10 @@ export default function NearbyVenuesPage() {
     setError(null)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setPin({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setPin({ 
+         lat: Number(pos.coords.latitude.toFixed(6)),
+         lng: Number(pos.coords.longitude.toFixed(6)),
+    })
         setGeoLoading(false)
         setSaveStatus(null)
       },
@@ -203,8 +209,8 @@ export default function NearbyVenuesPage() {
   }
 
   function selectSuggestion(place) {
-    const lat = parseFloat(place.lat)
-    const lng = parseFloat(place.lon)
+    const lat = Number(parseFloat(place.lat).toFixed(6))
+    const lng = Number(parseFloat(place.lon).toFixed(6))
     setPin({ lat, lng })
     setSaveStatus(null)
     setSearchQuery(place.display_name.split(',').slice(0, 2).join(',').trim())
