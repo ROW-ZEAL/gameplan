@@ -5,7 +5,7 @@ import { useToast } from '../../components/admin/Toast'
 import api from '../../api/axios'
 
 const BOOKING_STATUSES  = ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED']
-const PAYMENT_STATUSES  = ['UNPAID', 'PAID', 'REFUNDED', 'FAILED']
+const PAYMENT_STATUSES  = ['UNPAID', 'PAID', 'FAILED']
 
 function BookingDetailModal({ booking, onClose, onUpdate, saving }) {
   const [form, setForm] = useState({

@@ -22,6 +22,7 @@ import AdminUsers from './pages/admin/AdminUsers'
 import AdminVenues from './pages/admin/AdminVenues'
 import AdminBookings from './pages/admin/AdminBookings'
 import AdminSports from './pages/admin/AdminSports'
+import AdminFacilities from './pages/admin/AdminFacilities'
 import AdminPayments from './pages/admin/AdminPayments'
 import AdminLoginPage from './pages/AdminLoginPage'
 
@@ -51,9 +52,10 @@ export default function App() {
         <Route path="/admin"          element={<AdminRoute><AdminDashboard /></AdminRoute>} />
         <Route path="/admin/users"    element={<AdminRoute><AdminUsers /></AdminRoute>} />
         <Route path="/admin/venues"   element={<AdminRoute><AdminVenues /></AdminRoute>} />
-        <Route path="/admin/bookings" element={<AdminRoute><AdminBookings /></AdminRoute>} />
-        <Route path="/admin/sports"   element={<AdminRoute><AdminSports /></AdminRoute>} />
-        <Route path="/admin/payments" element={<AdminRoute><AdminPayments /></AdminRoute>} />
+        <Route path="/admin/bookings"    element={<AdminRoute><AdminBookings /></AdminRoute>} />
+        <Route path="/admin/sports"      element={<AdminRoute><AdminSports /></AdminRoute>} />
+        <Route path="/admin/facilities"  element={<AdminRoute><AdminFacilities /></AdminRoute>} />
+        <Route path="/admin/payments"    element={<AdminRoute><AdminPayments /></AdminRoute>} />
 
         {/* ── Fallback ──────────────────────────────────────── */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

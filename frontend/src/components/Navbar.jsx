@@ -34,7 +34,7 @@ export default function Navbar({ user: userProp, onLogout }) {
   )
 
   return (
-    <header className="sticky top-0 z-40 bg-white shadow-sm border-b border-slate-200">
+    <header className="sticky top-0 z-[1100] bg-white shadow-sm border-b border-slate-200">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="inline-flex items-center gap-3 rounded-3xl bg-emerald-600 px-4 py-3 text-white shadow-lg shadow-emerald-600/20 ring-1 ring-white/10">

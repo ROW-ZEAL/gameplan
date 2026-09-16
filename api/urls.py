@@ -13,9 +13,10 @@ from .views import (
     # Admin views
     AdminDashboardStatsView,
     AdminUserListView, AdminUserDetailView,
-    AdminVenueListCreateView, AdminVenueDetailView, AdminVenueAdminListView,
+    AdminVenueListCreateView, AdminVenueDetailView, AdminVenueImageCreateView, AdminVenueAdminListView,
     AdminBookingListView, AdminBookingDetailView,
     AdminSportListCreateView, AdminSportDetailView,
+    AdminFacilityListCreateView, AdminFacilityDetailView,
     AdminPaymentListView,
 )
 
@@ -65,11 +66,14 @@ urlpatterns = [
     path('admin/users/<uuid:pk>/',      AdminUserDetailView.as_view(),       name='admin-user-detail'),
     path('admin/venues/',               AdminVenueListCreateView.as_view(),  name='admin-venue-list'),
     path('admin/venues/<uuid:pk>/',     AdminVenueDetailView.as_view(),      name='admin-venue-detail'),
+    path('admin/venues/<uuid:pk>/images/', AdminVenueImageCreateView.as_view(), name='admin-venue-image-create'),
     path('admin/venue-admins/',         AdminVenueAdminListView.as_view(),   name='admin-venue-admins'),
     path('admin/bookings/',             AdminBookingListView.as_view(),      name='admin-booking-list'),
     path('admin/bookings/<uuid:pk>/',   AdminBookingDetailView.as_view(),    name='admin-booking-detail'),
     path('admin/sports/',               AdminSportListCreateView.as_view(),  name='admin-sport-list'),
     path('admin/sports/<uuid:pk>/',     AdminSportDetailView.as_view(),      name='admin-sport-detail'),
+    path('admin/facilities/',           AdminFacilityListCreateView.as_view(), name='admin-facility-list'),
+    path('admin/facilities/<uuid:pk>/', AdminFacilityDetailView.as_view(),  name='admin-facility-detail'),
     path('admin/payments/',             AdminPaymentListView.as_view(),      name='admin-payment-list'),
 ]
 

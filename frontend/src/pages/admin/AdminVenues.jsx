@@ -16,7 +16,7 @@ function ConfirmDialog({ message, onConfirm, onCancel, loading }) {
             Cancel
           </button>
           <button onClick={onConfirm} disabled={loading} className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 transition">
-            {loading ? 'Processing…' : 'Deactivate'}
+            {loading ? 'Processing…' : 'Remove'}
           </button>
         </div>
       </div>
@@ -24,8 +24,41 @@ function ConfirmDialog({ message, onConfirm, onCancel, loading }) {
   )
 }
 
-function VenueModal({ venue, sports, venueAdmins, onClose, onSave, saving }) {
+function VenueModal({ venue, sports, venueAdmins, facilities, onClose, onSave, saving }) {
   const isEdit = !!venue
+  const [imageFile, setImageFile] = useState(null)
+  const [imageError, setImageError] = useState('')
+  const [imagePreview, setImagePreview] = useState(venue?.images?.[0]?.image || '')
+  const parseTimeInput = (value) => {
+    if (!value) return ''
+    if (/^\d{2}:\d{2}$/.test(value) || /^\d{2}:\d{2}:\d{2}$/.test(value)) {
+      return value.slice(0, 5)
+    }
+    if (/[AP]M/i.test(value)) {
+      const [time, meridiem] = value.trim().split(/\s+/)
+      const [hour, minute] = time.split(':').map(Number)
+      let normalizedHour = hour
+      if (meridiem.toUpperCase() === 'PM' && hour !== 12) normalizedHour += 12
+      if (meridiem.toUpperCase() === 'AM' && hour === 12) normalizedHour = 0
+      return `${String(normalizedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+    }
+    return value.slice(0, 5)
+  }
+
+  const buildInitialTimeSlots = () => {
+    if (isEdit && Array.isArray(venue?.time_slots) && venue.time_slots.length > 0) {
+      return venue.time_slots.map((slot) => ({
+        id: slot.id || null,
+        start_time: parseTimeInput(slot.start_time),
+        end_time: parseTimeInput(slot.end_time),
+        is_active: slot.is_active !== false,
+      }))
+    }
+    return [
+      { id: null, start_time: '06:00', end_time: '07:00', is_active: true },
+    ]
+  }
+
   const [form, setForm] = useState(
     isEdit
       ? {
@@ -41,20 +74,74 @@ function VenueModal({ venue, sports, venueAdmins, onClose, onSave, saving }) {
           opening_time: venue.opening_time,
           closing_time: venue.closing_time,
           is_active: venue.is_active,
+          facilities: (venue.facilities || []).map((f) => f.id),
+          time_slots: buildInitialTimeSlots(),
         }
       : {
           name: '', sport_category: '', owner: '', description: '',
           address: '', city: '', latitude: '', longitude: '',
           price_per_hour: '', opening_time: '06:00:00', closing_time: '22:00:00',
           is_active: true,
+          facilities: [],
+          time_slots: buildInitialTimeSlots(),
         }
   )
   const [errors, setErrors] = useState({})
+
+  function updateTimeSlot(index, field, value) {
+    setForm((prev) => ({
+      ...prev,
+      time_slots: prev.time_slots.map((slot, i) =>
+        i === index ? { ...slot, [field]: value } : slot
+      ),
+    }))
+  }
+
+  function addTimeSlot() {
+    setForm((prev) => ({
+      ...prev,
+      time_slots: [...prev.time_slots, { id: null, start_time: '07:00', end_time: '08:00', is_active: true }],
+    }))
+  }
+
+  function removeTimeSlot(index) {
+    setForm((prev) => ({
+      ...prev,
+      time_slots: prev.time_slots.length > 1
+        ? prev.time_slots.filter((_, i) => i !== index)
+        : [{ id: null, start_time: '06:00', end_time: '07:00', is_active: true }],
+    }))
+  }
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target
     setForm((p) => ({ ...p, [name]: type === 'checkbox' ? checked : value }))
     if (errors[name]) setErrors((p) => ({ ...p, [name]: '' }))
+  }
+
+  function toggleFacility(facilityId) {
+    setForm((prev) => ({
+      ...prev,
+      facilities: prev.facilities.includes(facilityId)
+        ? prev.facilities.filter((id) => id !== facilityId)
+        : [...prev.facilities, facilityId],
+    }))
+  }
+
+  function handleImageChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setImageError('Please choose a valid image file.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setImageError('Image must be 5 MB or smaller.')
+      return
+    }
+    setImageError('')
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
   }
 
   function validate() {
@@ -72,11 +159,21 @@ function VenueModal({ venue, sports, venueAdmins, onClose, onSave, saving }) {
   function handleSubmit(e) {
     e.preventDefault()
     if (!validate()) return
+    if (!isEdit && !imageFile) {
+      setImageError('A venue photo is required.')
+      return
+    }
     const payload = { ...form }
+    payload.time_slots = (payload.time_slots || []).map((slot) => ({
+      id: slot.id || undefined,
+      start_time: slot.start_time || '00:00:00',
+      end_time: slot.end_time || '00:00:00',
+      is_active: slot.is_active !== false,
+    }))
     if (!payload.latitude) delete payload.latitude
     if (!payload.longitude) delete payload.longitude
     if (!payload.description) delete payload.description
-    onSave(isEdit ? venue.id : null, payload)
+    onSave(isEdit ? venue.id : null, payload, imageFile)
   }
 
   return (
@@ -180,6 +277,109 @@ function VenueModal({ venue, sports, venueAdmins, onClose, onSave, saving }) {
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">
+              Venue Photo {!isEdit && <span className="text-red-500">*</span>}
+            </label>
+            <div className="flex flex-col sm:flex-row gap-4 items-start rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="w-full sm:w-40 aspect-video rounded-lg overflow-hidden bg-slate-200 flex items-center justify-center">
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Venue preview" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xs text-slate-500">Photo preview</span>
+                )}
+              </div>
+              <div className="flex-1">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleImageChange}
+                  className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-emerald-700 hover:file:bg-emerald-200"
+                />
+                <p className="text-[11px] text-slate-500 mt-2">Use a clear JPG, PNG, or WebP photo up to 5 MB.</p>
+                {imageError && <p className="text-red-500 text-xs mt-1">{imageError}</p>}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wide">Facilities</label>
+            {facilities.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+                No facilities available. Add them from the Facilities page first.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border border-slate-300 bg-slate-50 p-3 max-h-40 overflow-y-auto">
+                {facilities.map((facility) => (
+                  <label
+                    key={facility.id}
+                    className="flex items-center gap-3 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-emerald-50 transition"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.facilities.includes(facility.id)}
+                      onChange={() => toggleFacility(facility.id)}
+                      className="w-4 h-4 accent-emerald-600"
+                    />
+                    <span>{facility.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-slate-500 mt-1">Select all facilities that this venue provides.</p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-700">Time Slots</h3>
+              <button
+                type="button"
+                onClick={addTimeSlot}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 transition"
+              >
+                + Add Slot
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {form.time_slots.map((slot, index) => (
+                <div key={`${slot.id || 'new'}-${index}`} className="rounded-xl border border-slate-200 bg-white p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-slate-700">Slot {index + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeTimeSlot(index)}
+                      className="text-xs text-red-600 hover:text-red-700 font-medium"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Start Time</label>
+                      <input
+                        type="time"
+                        value={slot.start_time}
+                        onChange={(e) => updateTimeSlot(index, 'start_time', e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">End Time</label>
+                      <input
+                        type="time"
+                        value={slot.end_time}
+                        onChange={(e) => updateTimeSlot(index, 'end_time', e.target.value)}
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {isEdit && (
             <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
               <input type="checkbox" name="is_active" checked={form.is_active} onChange={handleChange} className="w-4 h-4 accent-emerald-600" />
@@ -202,6 +402,7 @@ function VenueModal({ venue, sports, venueAdmins, onClose, onSave, saving }) {
 export default function AdminVenues() {
   const [venues, setVenues] = useState([])
   const [sports, setSports] = useState([])
+  const [facilities, setFacilities] = useState([])
   const [venueAdmins, setVenueAdmins] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -228,6 +429,7 @@ export default function AdminVenues() {
   useEffect(() => {
     fetchVenues()
     api.get('/admin/sports/').then((r) => setSports(r.data)).catch(() => {})
+    api.get('/admin/facilities/').then((r) => setFacilities(r.data)).catch(() => {})
     api.get('/admin/venue-admins/').then((r) => setVenueAdmins(r.data)).catch(() => {})
   }, []) // eslint-disable-line
 
@@ -238,18 +440,27 @@ export default function AdminVenues() {
     debounceRef.current = setTimeout(() => fetchVenues(v, sportFilter, activeFilter), 400)
   }
 
-  async function handleSave(id, form) {
+  async function handleSave(id, form, imageFile) {
     setSaving(true)
     try {
+      let venue
       if (id) {
         const { data } = await api.patch(`/admin/venues/${id}/`, form)
-        setVenues((prev) => prev.map((v) => (v.id === id ? data : v)))
-        showToast('Venue updated successfully.')
+        venue = data
       } else {
         const { data } = await api.post('/admin/venues/', form)
-        setVenues((prev) => [data, ...prev])
-        showToast('Venue created successfully.')
+        venue = data
       }
+      if (imageFile) {
+        const imageData = new FormData()
+        imageData.append('image', imageFile)
+        const { data: uploadedImage } = await api.post(`/admin/venues/${venue.id}/images/`, imageData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        venue = { ...venue, images: [...(venue.images || []), uploadedImage] }
+      }
+      setVenues((prev) => id ? prev.map((v) => (v.id === id ? venue : v)) : [venue, ...prev])
+      showToast(id ? 'Venue updated successfully.' : 'Venue created successfully.')
       setSelected(null)
     } catch (err) {
       const msg = err.response?.data
@@ -284,6 +495,7 @@ export default function AdminVenues() {
           venue={selected === false ? null : selected}
           sports={sports}
           venueAdmins={venueAdmins}
+          facilities={facilities}
           onClose={() => setSelected(null)}
           onSave={handleSave}
           saving={saving}
@@ -292,7 +504,7 @@ export default function AdminVenues() {
 
       {toDeactivate && (
         <ConfirmDialog
-          message={`Deactivate "${toDeactivate.name}"? It will be hidden from users but not deleted.`}
+          message={`Remove "${toDeactivate.name}"? It will be hidden from users but kept in the admin records.`}
           onConfirm={() => handleDeactivate(toDeactivate.id)}
           onCancel={() => setToDeactivate(null)}
           loading={saving}
@@ -392,7 +604,7 @@ export default function AdminVenues() {
                             onClick={() => setToDeactivate(v)}
                             className="px-2.5 py-1 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition"
                           >
-                            Deactivate
+                            Remove
                           </button>
                         )}
                       </div>

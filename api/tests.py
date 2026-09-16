@@ -1,7 +1,8 @@
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import Booking, Payment, SportCategory, User, Venue
+from .models import Booking, Payment, SportCategory, TimeSlot, User, Venue, VenueImage
 
 
 class AdminBookingUpdateTests(TestCase):
@@ -65,3 +66,67 @@ class AdminBookingUpdateTests(TestCase):
         self.assertEqual(self.booking.payment_status, Booking.PaymentStatus.PAID)
         self.assertEqual(self.payment.status, Payment.Status.SUCCESS)
         self.assertIsNotNone(self.payment.paid_at)
+
+
+class AdminVenueTimeSlotTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.sport = SportCategory.objects.create(name='Tennis Venue Sport')
+        self.admin = User.objects.create_user(
+            email='venueadmin@example.com',
+            password='pass123',
+            full_name='Venue Admin',
+            role=User.Role.SUPER_ADMIN,
+        )
+
+    def test_admin_can_create_venue_with_time_slots(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            '/api/admin/venues/',
+            {
+                'name': 'Sunrise Arena',
+                'sport_category': self.sport.id,
+                'owner': self.admin.id,
+                'description': 'Test venue',
+                'address': 'Hill Street',
+                'city': 'Kathmandu',
+                'price_per_hour': '1200.00',
+                'opening_time': '06:00:00',
+                'closing_time': '22:00:00',
+                'is_active': True,
+                'facilities': [],
+                'time_slots': [
+                    {'start_time': '09:00:00', 'end_time': '10:00:00', 'is_active': True},
+                    {'start_time': '10:00:00', 'end_time': '11:00:00', 'is_active': True},
+                ],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        venue = Venue.objects.get(name='Sunrise Arena')
+        self.assertEqual(venue.time_slots.count(), 2)
+        self.assertTrue(TimeSlot.objects.filter(venue=venue, start_time='09:00:00').exists())
+
+    def test_admin_can_upload_venue_image(self):
+        venue = Venue.objects.create(
+            sport_category=self.sport,
+            owner=self.admin,
+            name='Photo Venue',
+            address='Hill Street',
+            city='Kathmandu',
+            price_per_hour='1200.00',
+            opening_time='06:00:00',
+            closing_time='22:00:00',
+        )
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            f'/api/admin/venues/{venue.id}/images/',
+            {'image': SimpleUploadedFile('venue.jpg', b'fake-image-data', content_type='image/jpeg')},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(VenueImage.objects.filter(venue=venue).exists())

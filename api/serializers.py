@@ -97,6 +97,19 @@ class TimeSlotSerializer(serializers.ModelSerializer):
         return f"{round(h, 1)} hrs"
 
 
+class TimeSlotWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TimeSlot
+        fields = ('id', 'start_time', 'end_time', 'is_active')
+
+    def validate(self, attrs):
+        start_time = attrs.get('start_time')
+        end_time = attrs.get('end_time')
+        if start_time and end_time and start_time >= end_time:
+            raise serializers.ValidationError('Start time must be earlier than end time.')
+        return attrs
+
+
 class VenueListSerializer(serializers.ModelSerializer):
     sport_category = SportCategorySerializer(read_only=True)
     primary_image  = serializers.SerializerMethodField()
@@ -514,6 +527,23 @@ class AdminSportWriteSerializer(serializers.ModelSerializer):
         fields = ('name', 'description', 'icon')
 
 
+class AdminFacilitySerializer(serializers.ModelSerializer):
+    venue_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Facility
+        fields = ('id', 'name', 'icon', 'venue_count')
+
+    def get_venue_count(self, obj):
+        return obj.venues.count()
+
+
+class AdminFacilityWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Facility
+        fields = ('name', 'icon')
+
+
 class AdminVenueOwnerSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -523,6 +553,9 @@ class AdminVenueOwnerSerializer(serializers.ModelSerializer):
 class AdminVenueSerializer(serializers.ModelSerializer):
     sport_category = SportCategorySerializer(read_only=True)
     owner = AdminVenueOwnerSerializer(read_only=True)
+    facilities = FacilitySerializer(many=True, read_only=True)
+    images = VenueImageSerializer(many=True, read_only=True)
+    time_slots = TimeSlotSerializer(many=True, read_only=True)
     image_count = serializers.SerializerMethodField()
     booking_count = serializers.SerializerMethodField()
 
@@ -532,7 +565,7 @@ class AdminVenueSerializer(serializers.ModelSerializer):
             'id', 'name', 'sport_category', 'owner', 'description',
             'address', 'city', 'latitude', 'longitude',
             'price_per_hour', 'opening_time', 'closing_time',
-            'is_active', 'image_count', 'booking_count', 'created_at',
+            'is_active', 'facilities', 'images', 'time_slots', 'image_count', 'booking_count', 'created_at',
         )
 
     def get_image_count(self, obj):
@@ -543,12 +576,20 @@ class AdminVenueSerializer(serializers.ModelSerializer):
 
 
 class AdminVenueWriteSerializer(serializers.ModelSerializer):
+    facilities = serializers.PrimaryKeyRelatedField(
+        queryset=Facility.objects.all(),
+        many=True,
+        required=False,
+    )
+    time_slots = TimeSlotWriteSerializer(many=True, required=False)
+
     class Meta:
         model = Venue
         fields = (
             'name', 'sport_category', 'owner', 'description',
             'address', 'city', 'latitude', 'longitude',
-            'price_per_hour', 'opening_time', 'closing_time', 'is_active',
+            'price_per_hour', 'opening_time', 'closing_time',
+            'is_active', 'facilities', 'time_slots',
         )
 
     def validate_owner(self, owner):
@@ -558,6 +599,28 @@ class AdminVenueWriteSerializer(serializers.ModelSerializer):
                 'Owner must have VENUE_ADMIN or SUPER_ADMIN role.'
             )
         return owner
+
+    def create(self, validated_data):
+        facilities = validated_data.pop('facilities', [])
+        time_slots = validated_data.pop('time_slots', [])
+        venue = Venue.objects.create(**validated_data)
+        if facilities:
+            venue.facilities.set(facilities)
+        for slot_data in time_slots:
+            TimeSlot.objects.create(venue=venue, **slot_data)
+        return venue
+
+    def update(self, instance, validated_data):
+        facilities = validated_data.pop('facilities', None)
+        time_slots = validated_data.pop('time_slots', None)
+        venue = super().update(instance, validated_data)
+        if facilities is not None:
+            venue.facilities.set(facilities)
+        if time_slots is not None:
+            venue.time_slots.all().delete()
+            for slot_data in time_slots:
+                TimeSlot.objects.create(venue=venue, **slot_data)
+        return venue
 
 
 class AdminBookingUserSerializer(serializers.ModelSerializer):

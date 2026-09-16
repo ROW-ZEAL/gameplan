@@ -9,6 +9,7 @@ from django.conf import settings
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 from rest_framework import generics, status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -17,11 +18,12 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import (
-    Booking, Notification, OpponentRequest, Payment,
-    SportCategory, TimeSlot, User, Venue, VenueRating,
+    Booking, Facility, Notification, OpponentRequest, Payment,
+    SportCategory, TimeSlot, User, Venue, VenueImage, VenueRating,
 )
 from .serializers import (
     AdminBookingSerializer, AdminBookingUpdateSerializer,
+    AdminFacilitySerializer, AdminFacilityWriteSerializer,
     AdminPaymentSerializer,
     AdminSportSerializer, AdminSportWriteSerializer,
     AdminUserSerializer, AdminUserUpdateSerializer,
@@ -33,7 +35,7 @@ from .serializers import (
     PaymentCreateSerializer, PaymentSerializer,
     RecommendedVenueSerializer,
     RegisterSerializer, SportCategorySerializer,
-    TimeSlotSerializer, UserProfileSerializer,
+    TimeSlotSerializer, UserProfileSerializer, VenueImageSerializer,
     VenueDetailSerializer, VenueListSerializer,
     VenueRatingCreateSerializer, VenueRatingSerializer,
 )
@@ -981,7 +983,7 @@ class AdminVenueListCreateView(generics.ListCreateAPIView):
         serializer = AdminVenueWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         venue = serializer.save()
-        return Response(AdminVenueSerializer(venue).data, status=status.HTTP_201_CREATED)
+        return Response(AdminVenueSerializer(venue, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 
 class AdminVenueDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -1004,7 +1006,7 @@ class AdminVenueDetailView(generics.RetrieveUpdateDestroyAPIView):
         serializer = AdminVenueWriteSerializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         venue = serializer.save()
-        return Response(AdminVenueSerializer(venue).data)
+        return Response(AdminVenueSerializer(venue, context={'request': request}).data)
 
     def destroy(self, request, *args, **kwargs):
         """Soft-delete: deactivate instead of hard-deleting."""
@@ -1012,6 +1014,25 @@ class AdminVenueDetailView(generics.RetrieveUpdateDestroyAPIView):
         venue.is_active = False
         venue.save(update_fields=['is_active', 'updated_at'])
         return Response({'detail': 'Venue deactivated successfully.'}, status=status.HTTP_200_OK)
+
+
+class AdminVenueImageCreateView(APIView):
+    """POST /api/admin/venues/<pk>/images/ - upload a venue photo."""
+    permission_classes = (IsSuperAdmin,)
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, pk):
+        venue = Venue.objects.get(pk=pk)
+        image = request.FILES.get('image')
+        if not image:
+            return Response({'image': ['An image file is required.']}, status=status.HTTP_400_BAD_REQUEST)
+        if image.size > 5 * 1024 * 1024:
+            return Response({'image': ['Image must be 5 MB or smaller.']}, status=status.HTTP_400_BAD_REQUEST)
+        if not image.content_type.startswith('image/'):
+            return Response({'image': ['Upload a valid image file.']}, status=status.HTTP_400_BAD_REQUEST)
+
+        venue_image = VenueImage.objects.create(venue=venue, image=image)
+        return Response(VenueImageSerializer(venue_image, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 
 class AdminBookingListView(generics.ListAPIView):
@@ -1112,6 +1133,65 @@ class AdminSportListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         sport = serializer.save()
         return Response(AdminSportSerializer(sport).data, status=status.HTTP_201_CREATED)
+
+
+class AdminFacilityListCreateView(generics.ListCreateAPIView):
+    """
+    GET  /api/admin/facilities/ — all facilities
+    POST /api/admin/facilities/ — create facility
+    """
+    permission_classes = (IsSuperAdmin,)
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return AdminFacilityWriteSerializer
+        return AdminFacilitySerializer
+
+    def get_queryset(self):
+        qs = Facility.objects.all().order_by('name')
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(name__icontains=search)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = AdminFacilityWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        facility = serializer.save()
+        return Response(AdminFacilitySerializer(facility).data, status=status.HTTP_201_CREATED)
+
+
+class AdminFacilityDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    GET    /api/admin/facilities/<pk>/ — facility detail
+    PATCH  /api/admin/facilities/<pk>/ — update facility
+    DELETE /api/admin/facilities/<pk>/ — delete facility if unused
+    """
+    permission_classes = (IsSuperAdmin,)
+    queryset = Facility.objects.all()
+
+    def get_serializer_class(self):
+        if self.request.method in ('PUT', 'PATCH'):
+            return AdminFacilityWriteSerializer
+        return AdminFacilitySerializer
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = AdminFacilityWriteSerializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        facility = serializer.save()
+        return Response(AdminFacilitySerializer(facility).data)
+
+    def destroy(self, request, *args, **kwargs):
+        facility = self.get_object()
+        if facility.venues.exists():
+            return Response(
+                {'detail': 'Cannot delete a facility that is assigned to venues.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        facility.delete()
+        return Response({'detail': 'Facility deleted successfully.'}, status=status.HTTP_200_OK)
 
 
 class AdminSportDetailView(generics.RetrieveUpdateDestroyAPIView):

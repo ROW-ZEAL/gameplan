@@ -234,7 +234,7 @@ export default function BookingPage() {
 
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        {b.is_cancellable ? (
+                        {b.is_cancellable && !(b.payment_status === 'PAID' && b.status === 'CONFIRMED') ? (
                           <button
                             onClick={() => handleCancel(b.id)}
                             disabled={cancellingId === b.id}
